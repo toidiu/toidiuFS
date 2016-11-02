@@ -17,8 +17,10 @@ node_modules
 wiki
 .DS_Store
 *.log
+account.conf
 conf/ssl
 *.keystore
+
 # Elastic Beanstalk Files
 .elasticbeanstalk/*
 !.elasticbeanstalk/*.cfg.yml
