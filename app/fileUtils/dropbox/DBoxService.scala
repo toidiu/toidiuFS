@@ -15,8 +15,8 @@ import scala.concurrent.Future
 object DBoxService extends FileService {
   private val baseUrl: String = "https://content.dropboxapi.com/2/files/upload"
 
-  import io.circe.syntax._
-  import io.circe._
+  import io.circe.syntax._, io.circe._, io.circe.generic.auto._
+
   override def uploadFile(pathFile: String, stream: Source[ByteString, _]): Future[WSResponse] = {
     case class UploadArgs(path: String, mode: String = "overwrite", mute: Boolean = false)
     val args = UploadArgs(pathFile).asJson.noSpaces
