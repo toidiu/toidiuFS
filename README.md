@@ -1,5 +1,5 @@
 ## Design decisions: 
-- The FS is designed to scale horizontally and highly available
+- The FS is designed to scale horizontally and be highly available
 - If there is less than the minimum # of services 'up', then everything fails.
 - We will prioritize high availability of reads even though this may result
 in old data. No read locks are used.
@@ -23,6 +23,9 @@ to get inconsistent data across services.
     - The FS server will employ resolution by updating all the services with
     the latest file found
     - Each file will have a timestamp that determines which is the 'latest'
+- Caching:
+    - The current version will not implement any local chaching on the server 
+    nodes however to improve performance this should be added in future versions
 
 ## Implications of the design:
 - By not using read locks, it is possible to have old data.
