@@ -4,7 +4,7 @@ import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.Source
 import akka.util.{ByteString, Timeout}
-import play.api.Logger
+import fileUtils.dropbox.DBoxService
 import play.api.libs.streams.Accumulator
 import play.api.mvc.{Action, BodyParser, Controller}
 
@@ -40,17 +40,24 @@ class MainController extends Controller {
   }
 
 
-  def postFile(key: String) = Action.async(verbatimBodyParser) { req =>
+//  def postFile(key: String) = Action.async(verbatimBodyParser) { req =>
+  def postFile(key: String) = Action.async(parse.temporaryFile) { req =>
     println(req.headers.get("Content-Type").getOrElse("no mime"))
     println(req.headers.get("content-length").getOrElse("no length"))
     println(req.body)
 
+    DBoxService.uploadFile("test.txt", req.body.file).map { r =>
+      println("-=-=2")
+      println(r)
+      Ok.chunked(r.body)
+//      Ok(r.body)
+    }
 
+//        Future(Ok.chunked(req.body))
 
-//    req.body.asBytes().ast
-    Future(Ok.chunked(req.body))
+    //    req.body.asBytes().ast
 
-//    Future(Ok("Hi"))
+    //    Future(Ok("Hi"))
   }
 
   def postMeta(key: String) = Action.async { req =>

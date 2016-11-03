@@ -7,13 +7,20 @@ lazy val toidiufs = (project in file(".")).enablePlugins(PlayScala)
 scalaVersion := "2.11.8"
 
 
-libraryDependencies ++= Seq(
-  "com.typesafe.akka" %% "akka-slf4j" % "2.4.10"
-  , "com.typesafe.akka" %% "akka-stream" % "2.4.10"
-  , "io.circe" %% "circe-core" % "0.3.0"
-  , "io.circe" %% "circe-generic" % "0.3.0"
-  , "io.circe" %% "circe-jawn" % "0.3.0"
-  , "org.typelevel" %% "cats" % "0.7.2"
-)
+libraryDependencies ++= {
+
+  val akkaV = "2.4.10"
+  val catsV = "0.8.0"
+  val circeV = "0.5.1"
+  Seq(
+    "com.typesafe.akka" %% "akka-slf4j" % akkaV
+    ,  ws
+    , "com.typesafe.akka" %% "akka-stream" % akkaV
+    , "io.circe" %% "circe-core" % circeV
+    , "io.circe" %% "circe-generic" % circeV
+    , "io.circe" %% "circe-jawn" % circeV
+    , "org.typelevel" %% "cats" % catsV
+  )
+}
 
 resolvers += Resolver.sonatypeRepo("snapshots")
