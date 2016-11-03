@@ -24,8 +24,7 @@ trait FileService {
   val wsClient = NingWSClient()
 
 
-//  def uploadFile(pathFile:String, stream: Source[ByteString, _]) :Future[StreamedResponse]
-  def uploadFile(pathFile:String, stream: File) :Future[StreamedResponse]
+  def uploadFile(pathFile:String, stream: Source[ByteString, _]) :Future[WSResponse]
 
   def getFile
 

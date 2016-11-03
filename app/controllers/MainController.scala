@@ -1,5 +1,6 @@
 package controllers
 
+import akka.NotUsed
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.Source
@@ -40,20 +41,25 @@ class MainController extends Controller {
   }
 
 
-//  def postFile(key: String) = Action.async(verbatimBodyParser) { req =>
-  def postFile(key: String) = Action.async(parse.temporaryFile) { req =>
-    println(req.headers.get("Content-Type").getOrElse("no mime"))
-    println(req.headers.get("content-length").getOrElse("no length"))
-    println(req.body)
+  def postFile(key: String) = Action.async(verbatimBodyParser) { req =>
+    //  def postFile(key: String) = Action.async(parse.temporaryFile) { req =>
+    val mime = req.headers.get("Content-Type").getOrElse("no mime")
+    val length = req.headers.get("content-length").getOrElse("no length")
+    println(mime)
+    println(length)
 
-    DBoxService.uploadFile("test.txt", req.body.file).map { r =>
+    val mimeLengthBytes = ByteString(mime + length)
+    val saveStream = Source.single(mimeLengthBytes).concat(req.body)
+//    val saveStream = Source.combine(Source.single(mimeLengthBytes), req.body)
+
+    DBoxService.uploadFile( "/" + key, saveStream).map { r =>
       println("-=-=2")
       println(r)
-      Ok.chunked(r.body)
-//      Ok(r.body)
+      //      Ok.chunked(r.body)
+      Ok(r.statusText)
     }
 
-//        Future(Ok.chunked(req.body))
+    //        Future(Ok.chunked(req.body))
 
     //    req.body.asBytes().ast
 
