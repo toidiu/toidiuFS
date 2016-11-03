@@ -2,8 +2,11 @@ package controllers
 
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
-import akka.util.Timeout
-import play.api.mvc.{Action, Controller}
+import akka.stream.scaladsl.Source
+import akka.util.{ByteString, Timeout}
+import play.api.Logger
+import play.api.libs.streams.Accumulator
+import play.api.mvc.{Action, BodyParser, Controller}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -20,14 +23,41 @@ class MainController extends Controller {
 
   def index = Action.async(Future(Ok("Hi")))
 
-  def getFile(key: String) = Action.async {
+  def getFile(key: String) = Action.async { req =>
+    println(req)
+
     Future(Ok("Hi"))
   }
 
-  def postFile(key: String) = play.mvc.Results.TODO
+  def verbatimBodyParser: BodyParser[Source[ByteString, _]] = BodyParser { _ =>
+    // Return the source directly. We need to return
+    // an Accumulator[Either[Result, T]], so if we were
+    // handling any errors we could map to something like
+    // a Left(BadRequest("error")). Since we're not
+    // we just wrap the source in a Right(...)
+    Accumulator.source[ByteString]
+      .map(Right.apply)
+  }
 
-  def postMeta(key: String) = play.mvc.Results.TODO
 
+  def postFile(key: String) = Action.async(verbatimBodyParser) { req =>
+    println(req.headers.get("Content-Type").getOrElse("no mime"))
+    println(req.headers.get("content-length").getOrElse("no length"))
+    println(req.body)
+
+
+
+//    req.body.asBytes().ast
+    Future(Ok.chunked(req.body))
+
+//    Future(Ok("Hi"))
+  }
+
+  def postMeta(key: String) = Action.async { req =>
+    println(req)
+
+    Future(Ok("Hi"))
+  }
 }
 
 
