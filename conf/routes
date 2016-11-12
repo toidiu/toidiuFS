@@ -1,4 +1,4 @@
 GET         /                     controllers.MainController.index
 GET         /:key                 controllers.MainController.getFile(key:String)
 POST        /:key                 controllers.MainController.postFile(key:String)
-GET         /metadata/:key        controllers.MainController.postMeta(key:String)
+GET         /metadata/:key        controllers.MainController.getMeta(key:String)

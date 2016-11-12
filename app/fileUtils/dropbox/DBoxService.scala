@@ -3,7 +3,7 @@ package fileUtils.dropbox
 import akka.stream.scaladsl.Source
 import akka.util.ByteString
 import fileUtils.FileService
-import play.api.libs.ws.{StreamedBody, WSResponse}
+import play.api.libs.ws.{StreamedBody, StreamedResponse, WSResponse}
 import utils.AppUtils
 
 import scala.concurrent.Future
@@ -13,13 +13,32 @@ import scala.concurrent.Future
   */
 
 object DBoxService extends FileService {
-  private val baseUrl: String = "https://content.dropboxapi.com/2/files/upload"
 
-  import io.circe.syntax._, io.circe._, io.circe.generic.auto._
+  import io.circe._
+  import io.circe.generic.auto._
+  import io.circe.syntax._
 
-  override def uploadFile(pathFile: String, stream: Source[ByteString, _]): Future[WSResponse] = {
+  override def getFile(key: String): Future[StreamedResponse] = {
+    //  override def getFile(key: String): Future[WSResponse] = {
+    val baseUrl: String = "https://content.dropboxapi.com/2/files/download"
+    case class DownloadArgs(path: String)
+    val args = DownloadArgs("/" + key).asJson.noSpaces
+
+    wsClient.url(baseUrl).withHeaders(
+      ("Authorization", "Bearer " + AppUtils.dropboxToken)
+      , ("Dropbox-API-Arg", args)
+      //      , ("Content-Type", "application/octet-stream")
+    )
+      .withMethod("POST").stream()
+      //      .execute("POST")
+      //          .withBody()
+    //      , ("Dropbox-API-Arg", args)
+  }
+
+  override def uploadFile(key: String, stream: Source[ByteString, _]): Future[WSResponse] = {
+    val baseUrl: String = "https://content.dropboxapi.com/2/files/upload"
     case class UploadArgs(path: String, mode: String = "overwrite", mute: Boolean = false)
-    val args = UploadArgs(pathFile).asJson.noSpaces
+    val args = UploadArgs("/" + key).asJson.noSpaces
 
     wsClient.url(baseUrl).withHeaders(
       ("Authorization", "Bearer " + AppUtils.dropboxToken)
@@ -27,8 +46,6 @@ object DBoxService extends FileService {
       , ("Content-Type", "application/octet-stream"))
       .withBody(StreamedBody(stream)).execute("POST")
   }
-
-  override def getFile: Unit = ???
 
   override def getMeta: Unit = ???
 }

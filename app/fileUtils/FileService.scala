@@ -26,7 +26,7 @@ trait FileService {
 
   def uploadFile(pathFile:String, stream: Source[ByteString, _]) :Future[WSResponse]
 
-  def getFile
+  def getFile(key:String): Future[StreamedResponse]
 
   def getMeta
 

@@ -5,8 +5,8 @@ import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.Source
 import akka.util.{ByteString, Timeout}
 import fileUtils.dropbox.DBoxService
-import play.api.libs.streams.Accumulator
-import play.api.mvc.{Action, BodyParser, Controller}
+import play.api.mvc.{Action, Controller}
+import utils.AppUtils
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -20,27 +20,32 @@ class MainController extends Controller {
   implicit val timeout = new Timeout(20 seconds)
   implicit val system = ActorSystem()
   implicit val materializer = ActorMaterializer()
+  val bufferByte: Int = 150
 
   def index = Action.async(Future(Ok("Hi")))
 
   def getFile(key: String) = Action.async { req =>
-    println(req)
-
-    Future(Ok("Hi"))
+    DBoxService.getFile(key).map { rep =>
+      var one = true
+      val fileStream: Source[ByteString, _] = rep.body.map(bs =>
+        if (one) {
+          one = false;
+          bs.drop(bufferByte)
+        }
+        else bs
+      )
+      Ok.chunked(fileStream)
+    }
   }
 
-  def verbatimBodyParser: BodyParser[Source[ByteString, _]] = BodyParser { _ =>
-    // Return the source directly. We need to return
-    // an Accumulator[Either[Result, T]], so if we were
-    // handling any errors we could map to something like
-    // a Left(BadRequest("error")). Since we're not
-    // we just wrap the source in a Right(...)
-    Accumulator.source[ByteString]
-      .map(Right.apply)
+  def getMeta(key: String) = Action.async { req =>
+    DBoxService.getFile(key).map { rep =>
+      val fileStream: Source[ByteString, _] = rep.body.take(1).map(bs => bs.take(bufferByte))
+      Ok.chunked(fileStream)
+    }
   }
 
-
-  def postFile(key: String) = Action.async(verbatimBodyParser) { req =>
+  def postFile(key: String) = Action.async(AppUtils.streamBP) { req =>
     val mime = req.headers.get("Content-Type").getOrElse(throw new Exception("no mime type"))
     val length = req.headers.get("content-length").getOrElse(throw new Exception("no content length"))
 
@@ -48,21 +53,16 @@ class MainController extends Controller {
     //prepend info bytes to the file stream
     val join: String = List(mime, length).mkString(",")
     val mimeLengthBytes = ByteString(join)
-    val infoBytes = mimeLengthBytes ++ ByteString.fromArray(new Array[Byte](150 - mimeLengthBytes.size))
+    val infoBytes = mimeLengthBytes ++ ByteString.fromArray(new Array[Byte](bufferByte - mimeLengthBytes.size))
     println(infoBytes.length)
     println(infoBytes.utf8String)
 
     //save the file
     val saveStream = Source.single(infoBytes).concat(req.body)
-    DBoxService.uploadFile("/" + key, saveStream).map { r =>
-      Ok(r.toString)
+    //    val saveStream = req.body
+    DBoxService.uploadFile(key, saveStream).map { rep =>
+      Ok(rep.toString)
     }
-  }
-
-  def postMeta(key: String) = Action.async { req =>
-    println(req)
-
-    Future(Ok("Hi"))
   }
 }
 
