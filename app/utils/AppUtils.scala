@@ -12,9 +12,12 @@ import play.api.mvc.BodyParser
 object AppUtils {
   val conf = ConfigFactory.load()
   var dropboxEnable = conf.getBoolean("dropbox.enable")
-  var dropboxKey :String = conf.getString("dropbox.key")
-  var dropboxSecret :String = conf.getString("dropbox.secret")
   var dropboxToken :String = conf.getString("dropbox.token")
+
+  var s3Enable = conf.getBoolean("s3.enable")
+  var s3AccessKey :String = conf.getString("s3.accessKey")
+  var s3SecretKey :String = conf.getString("s3.secretKey")
+  var s3Bucket :String = conf.getString("s3.bucket")
 
 
   def streamBP: BodyParser[Source[ByteString, _]] = BodyParser { _ =>

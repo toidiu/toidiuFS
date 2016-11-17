@@ -1,16 +1,12 @@
 package fileUtils
 
-import java.io.File
-
+import akka.actor.ActorSystem
+import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.Source
 import akka.util.{ByteString, Timeout}
-import play.api.libs.ws.{StreamedResponse, WSResponse}
 import play.api.libs.ws.ning.NingWSClient
 
 import scala.concurrent.Future
-import akka.actor.ActorSystem
-import akka.stream.ActorMaterializer
-
 import scala.concurrent.duration._
 
 /**
@@ -24,10 +20,14 @@ trait FileService {
   val wsClient = NingWSClient()
 
 
-  def uploadFile(pathFile:String, stream: Source[ByteString, _]) :Future[WSResponse]
+  def postFile(meta: ByteString, key: String, stream: Source[ByteString, _]): Future[Either[_, Boolean]]
 
-  def getFile(key:String): Future[StreamedResponse]
+  def getFile(key: String): Future[Source[ByteString, _]]
 
-  def getMeta
+  def getMeta(key: String): Future[Source[ByteString, _]]
+}
 
+
+object FileService {
+  val bufferByte: Int = 150
 }

@@ -31,3 +31,4 @@ docs/certs
 docs/backup
 release*.sh
 tryScala.sc
+DistributedFileStore.md
