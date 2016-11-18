@@ -1,6 +1,6 @@
 package fileUtils.dropbox
 
-import akka.stream.scaladsl.Source
+import akka.stream.scaladsl.{Sink, Source}
 import akka.util.ByteString
 import fileUtils.FileService
 import play.api.libs.ws.StreamedBody
@@ -20,7 +20,7 @@ object DBoxService extends FileService {
   import io.circe.syntax._
 
   override def postFile(meta: ByteString, key: String, stream: Source[ByteString, _]): Future[Either[_, Boolean]] = {
-    val saveStream = Source.single(meta).concat(stream)
+    val saveStream: Source[ByteString, _] = Source.single(meta).concat(stream)
 
     val baseUrl: String = "https://content.dropboxapi.com/2/files/upload"
     case class UploadArgs(path: String, mode: String = "overwrite", mute: Boolean = false)
@@ -30,7 +30,9 @@ object DBoxService extends FileService {
       ("Authorization", "Bearer " + AppUtils.dropboxToken)
       , ("Dropbox-API-Arg", args)
       , ("Content-Type", "application/octet-stream"))
-      .withBody(StreamedBody(saveStream)).execute("POST")
+      .withBody(
+        StreamedBody(saveStream)
+      ).execute("POST")
 
     rep.map(r => r.status match {
       case 200 => Right(true)

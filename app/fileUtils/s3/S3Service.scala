@@ -21,10 +21,6 @@ import scala.concurrent.duration.FiniteDuration
   */
 object S3Service extends FileService {
 
-  import io.circe._
-  import io.circe.generic.auto._
-  import io.circe.syntax._
-
   val cred = new BasicAWSCredentials(AppUtils.s3AccessKey, AppUtils.s3SecretKey)
   val s3: AmazonS3 = new AmazonS3Client(cred)
   val bucket = s3.createBucket(AppUtils.s3Bucket)

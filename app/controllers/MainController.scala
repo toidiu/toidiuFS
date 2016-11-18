@@ -39,13 +39,15 @@ class MainController extends Controller {
     val length = req.headers.get("content-length").getOrElse(throw new Exception("no content length"))
 
     //get meta data
-    val join: String = List(mime, length).mkString(",")
-    val mimeLengthBytes = ByteString(join)
-    val infoBytes: ByteString = mimeLengthBytes ++ ByteString.fromArray(new Array[Byte](FileService.bufferByte - mimeLengthBytes.size))
-    //    println(infoBytes.length)
-    //    println(infoBytes.utf8String)
-
+    val infoBytes: ByteString = FileService.buildMeta(mime, length)
     //save the file
+    val s3 = S3Service.postFile(infoBytes, key, req.body)
+    val db = DBoxService.postFile(infoBytes, key, req.body)
+    for {
+      s <- s3
+      d <- db
+    } yield s
+
     DBoxService.postFile(infoBytes, key, req.body).map { rep => Ok(rep.toString) }
   }
 }

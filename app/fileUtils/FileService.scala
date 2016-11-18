@@ -27,7 +27,15 @@ trait FileService {
   def getMeta(key: String): Future[Source[ByteString, _]]
 }
 
-
 object FileService {
   val bufferByte: Int = 150
+
+  def buildMeta(mime:String, length:String): ByteString ={
+    val join: String = List(mime, length).mkString(",")
+    val mimeLengthBytes = ByteString(join)
+    //    println(infoBytes.length)
+    //    println(infoBytes.utf8String)
+
+    mimeLengthBytes ++ ByteString.fromArray(new Array[Byte](FileService.bufferByte - mimeLengthBytes.size))
+  }
 }
