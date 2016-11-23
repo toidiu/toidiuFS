@@ -13,11 +13,22 @@ object AppUtils {
   val conf = ConfigFactory.load()
   var dropboxEnable = conf.getBoolean("dropbox.enable")
   var dropboxToken :String = conf.getString("dropbox.token")
+  var dropboxPath :String = conf.getString("dropbox.path")
 
   var s3Enable = conf.getBoolean("s3.enable")
   var s3AccessKey :String = conf.getString("s3.accessKey")
   var s3SecretKey :String = conf.getString("s3.secretKey")
   var s3Bucket :String = conf.getString("s3.bucket")
+
+
+  //-=-=-=-=-=-=-=-==-==-==-==-=-=-=-=-=-=-
+  //left to do
+  //-=-=-=-=-=-=-=-==-==-==-==-=-=-=-=-=-=-
+//  WHITE/BLACK LIST
+//    mime allowed
+//    size allowed
+//  replicatio minimum
+
 
 
   def streamBP: BodyParser[Source[ByteString, _]] = BodyParser { _ =>

@@ -5,18 +5,24 @@ import java.util.concurrent.TimeUnit
 
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
-import akka.stream.scaladsl.{Source, StreamConverters}
+import akka.stream.scaladsl.StreamConverters
 import akka.util.{ByteString, Timeout}
 import fileUtils.FileService
 import fileUtils.dbx.DbxService
 import fileUtils.s3.S3Service
-import models.{Meta, MetaDate}
+import io.circe._
+import io.circe.generic.JsonCodec
+import io.circe.generic.auto._
+import io.circe.generic.semiauto._
+import io.circe.parser._
+import io.circe.syntax._
+import models._
 import play.api.mvc.{Action, Controller}
-import utils.{AppUtils, FutureUtil}
+import utils.{AppUtils, FutureUtil, SplittableInputStream, TimeUtils}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
-import scala.concurrent.duration.{FiniteDuration, _}
+import scala.concurrent.duration._
 import scala.util.{Failure, Success}
 
 /**
@@ -46,37 +52,46 @@ class MainController extends Controller {
       s <- S3Service.getMeta(key)
     } yield (d, s)
 
-    meta.map { rep =>
-      Ok("[" + rep._1 + "," + rep._2 + "]")
+
+
+    meta.map(strTup => (decode[DbxMeta](strTup._1), decode[S3Meta](strTup._2))).map {
+      case (Right(a), Right(b)) => val ret = Meta((a, b)).asJson.spaces2; Ok(ret)
+      case (Right(a), Left(b)) => val ret = a.asJson.spaces2; Ok(ret + "\n" + b.toString)
+      case (Left(a), Right(b)) => val ret = b.asJson.spaces2; Ok(a.toString + "\n" + ret)
+      case (Left(a), Left(b)) => BadRequest(a.toString + "\n" + b.toString)
     }
   }
 
-  def postFile(key: String) = Action.async(AppUtils.streamBP) { req =>
-    import utils.SplittableInputStream
-    val mime = req.headers.get("Content-Type").getOrElse(throw new Exception("no mime type"))
-    val length = req.headers.get("content-length").getOrElse(throw new Exception("no content length"))
-    val meta = Meta(length.toLong, mime, MetaDate.asString)
 
-    //get meta data
-    val infoBytes: ByteString = FileService.buildMeta(meta)
-    val infoStream = Source.single(infoBytes).runWith(StreamConverters.asInputStream(FiniteDuration(5, TimeUnit.SECONDS)))
+  def postFile(key: String) = Action.async(AppUtils.streamBP) {
+    req =>
+      val mime = req.headers.get("Content-Type").getOrElse(throw new Exception("no mime type"))
+      val length = req.headers.get("content-length").getOrElse(throw new Exception("no content length"))
+      require(length forall Character.isDigit)
 
-    //file stream
-    val inputStream: InputStream = req.body.runWith(StreamConverters.asInputStream(FiniteDuration(5, TimeUnit.SECONDS)))
-    val s3IS = new SplittableInputStream(inputStream)
-    val dbxIS = new java.io.SequenceInputStream(infoStream, s3IS.split)
+      //get meta data
+      val uploadTime: String = TimeUtils.zoneAsString
+      val dbxMeta: DbxMeta = DbxMeta(length.toLong, mime, uploadTime, "dropbox", DbxDteail(DbxService.getPath(key)))
+      val dbxBytes = FileService.buildDbxMeta(dbxMeta)
+      val s3Meta: S3Meta = S3Meta(length.toLong, mime, uploadTime, "s3", S3Dteail(AppUtils.s3Bucket, key))
+      val s3Bytes: ByteString = FileService.buildS3Meta(s3Meta)
 
-    //save the file
-    val s3 = S3Service.postFile(infoBytes, key, s3IS)
-    val dbx = DbxService.postFile(infoBytes, key, dbxIS)
-    val res = for {
-      s <- s3
-      d <- dbx
-    } yield (s, d)
-    s3IS.close()
-    dbxIS.close()
+      //file stream
+      val inputStream: InputStream = req.body.runWith(StreamConverters.asInputStream(FiniteDuration(5, TimeUnit.SECONDS)))
+      val s3IS = new SplittableInputStream(inputStream)
+      val dbxIS = s3IS.split
 
-    res.map(d => Ok(d.toString))
+      //save the file
+      val s3 = S3Service.postFile(s3Bytes, key, s3IS)
+      val dbx = DbxService.postFile(dbxBytes, key, dbxIS)
+      val res = for {
+        s <- s3
+        d <- dbx
+      } yield (s, d)
+      s3IS.close()
+      dbxIS.close()
+
+      res.map(d => Ok(d.toString))
   }
 
 

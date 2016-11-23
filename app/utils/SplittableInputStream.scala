@@ -74,7 +74,7 @@ object SplittableInputStream {
       if (readPositions.get(readerId) >= writePosition) {
         readjustBuffer()
         buffer({
-          writePosition += 1;
+          writePosition += 1
           writePosition - 1
         }) = source.read
       }

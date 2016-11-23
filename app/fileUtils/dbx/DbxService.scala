@@ -2,6 +2,7 @@ package fileUtils.dbx
 
 import java.io.InputStream
 import java.sql.Date
+import java.util.concurrent.TimeUnit
 
 import akka.stream.scaladsl.{Source, StreamConverters}
 import akka.util.ByteString
@@ -14,6 +15,7 @@ import utils.AppUtils
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
+import scala.concurrent.duration.FiniteDuration
 
 /**
   * Created by toidiu on 11/2/16.
@@ -24,11 +26,19 @@ object DbxService extends FileService {
   val config: DbxRequestConfig = DbxRequestConfig.newBuilder("toidiuFS").withUserLocale("en_US").build()
   val client: DbxClientV2 = new DbxClientV2(config, AppUtils.dropboxToken)
 
+  def getPath(key: String): String = AppUtils.dropboxPath + key
+
   override def postFile(meta: ByteString, key: String, inputStream: InputStream): Future[Either[_, Boolean]] = {
-    val metadata = client.files().uploadBuilder("/" + key)
+
+    val metaIs = Source.single(meta).runWith(StreamConverters.asInputStream(FiniteDuration(5, TimeUnit.SECONDS)))
+    val saveIs = new java.io.SequenceInputStream(metaIs, inputStream)
+
+    val metadata = client.files().uploadBuilder(getPath(key))
       .withMode(WriteMode.OVERWRITE)
       .withClientModified(new Date(System.currentTimeMillis()))
-      .uploadAndFinish(inputStream)
+      .uploadAndFinish(saveIs)
+
+    saveIs.close()
 
     val fut: Future[Either[_, Boolean]] = for {
       s <- Future(metadata)
@@ -38,7 +48,7 @@ object DbxService extends FileService {
   }
 
   override def getFile(key: String): Future[Source[ByteString, _]] = {
-    lazy val stream: () => InputStream = client.files().download("/" + key).getInputStream
+    lazy val stream: () => InputStream = client.files().download(getPath(key)).getInputStream
     var one = true
 
     Future(StreamConverters.fromInputStream(stream).map { bs =>
@@ -51,15 +61,15 @@ object DbxService extends FileService {
   }
 
   override def getMeta(key: String): Future[String] = {
-    val stream = client.files().download("/" + key).getInputStream
-    val meta = Array.ofDim[Byte](bufferByte)
+    val stream = client.files().download(getPath(key)).getInputStream
+    val meta = Array.ofDim[Byte](3)
     try {
       stream.read(meta)
     } finally {
       stream.close()
     }
 
-    Future(ByteString(meta).utf8String)
+    Future(ByteString(meta.filterNot(_ == 0)).utf8String)
   }
 
 }
