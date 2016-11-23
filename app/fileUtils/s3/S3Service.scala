@@ -42,18 +42,10 @@ object S3Service extends FileService {
     Future(StreamConverters.fromInputStream(op.getObjectContent))
   }
 
-//  override def getMeta(key: String): Future[Source[ByteString, _]] = {
     override def getMeta(key: String): Future[String] = {
     val op: Future[ObjectMetadata] = Future(s3.getObjectMetadata(bucket.getName, key))
 
     op.flatMap(e => Future(e.getUserMetaDataOf("meta")))
-
-
-    //    Future(Source.fromFuture(
-    //      op.map { m =>
-    //        ByteString(m.getUserMetaDataOf("meta"))
-    //      }
-    //    ))
   }
 
 }

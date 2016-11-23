@@ -3,7 +3,7 @@ package fileUtils.dbx
 import java.io.InputStream
 import java.sql.Date
 
-import akka.stream.scaladsl.Source
+import akka.stream.scaladsl.{Source, StreamConverters}
 import akka.util.ByteString
 import com.dropbox.core.DbxRequestConfig
 import com.dropbox.core.v2.DbxClientV2
@@ -21,10 +21,6 @@ import scala.concurrent.Future
 
 object DbxService extends FileService {
 
-  import io.circe._
-  import io.circe.generic.auto._
-  import io.circe.syntax._
-
   val config: DbxRequestConfig = DbxRequestConfig.newBuilder("toidiuFS").withUserLocale("en_US").build()
   val client: DbxClientV2 = new DbxClientV2(config, AppUtils.dropboxToken)
 
@@ -41,32 +37,17 @@ object DbxService extends FileService {
     fut.recover { case e: Exception => Left(e.toString) }
   }
 
-
   override def getFile(key: String): Future[Source[ByteString, _]] = {
-    //  override def getFile(key: String): Future[WSResponse] = {
-    val baseUrl: String = "https://content.dropboxapi.com/2/files/download"
-    case class DownloadArgs(path: String)
-    val args = DownloadArgs("/" + key).asJson.noSpaces
+    lazy val stream: () => InputStream = client.files().download("/" + key).getInputStream
+    var one = true
 
-    val res = wsClient.url(baseUrl).withHeaders(
-      ("Authorization", "Bearer " + AppUtils.dropboxToken)
-      , ("Dropbox-API-Arg", args)
-    )
-      .withMethod("POST").stream()
-
-
-    res.map { rep =>
-      var one = true
-      val fileStream: Source[ByteString, _] = rep.body.map(bs =>
-        //        if (one) {
-        //          one = false
-        //          bs.drop(FileService.bufferByte)
-        //        }
-        //        else bs
-        bs
-      )
-      fileStream
-    }
+    Future(StreamConverters.fromInputStream(stream).map { bs =>
+      if (one) {
+        one = false
+        bs.drop(FileService.bufferByte)
+      }
+      else bs
+    })
   }
 
   override def getMeta(key: String): Future[String] = {
@@ -79,9 +60,6 @@ object DbxService extends FileService {
     }
 
     Future(ByteString(meta).utf8String)
-    //    stream.flatMap { rep =>
-    //      rep.body.take(1).map(bs => bs.take(FileService.bufferByte).utf8String)
-    //    }
   }
 
 }

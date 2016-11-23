@@ -6,6 +6,7 @@ import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.Source
 import akka.util.{ByteString, Timeout}
+import models.Meta
 import play.api.libs.ws.ning.NingWSClient
 
 import scala.concurrent.Future
@@ -26,19 +27,20 @@ trait FileService {
 
   def getFile(key: String): Future[Source[ByteString, _]]
 
-//  def getMeta(key: String): Future[Source[ByteString, _]]
   def getMeta(key: String): Future[String]
 }
 
 object FileService {
+
+  import io.circe._
+  import io.circe.generic.auto._
+  import io.circe.parser._
+  import io.circe.syntax._
+
   val bufferByte: Int = 150
 
-  def buildMeta(mime:String, length:String): ByteString ={
-    val join: String = List(mime, length).mkString(",")
-    val mimeLengthBytes = ByteString(join)
-    //    println(infoBytes.length)
-    //    println(infoBytes.utf8String)
-
+  def buildMeta(meta: Meta): ByteString = {
+    val mimeLengthBytes = ByteString(meta.asJson.noSpaces)
     mimeLengthBytes ++ ByteString.fromArray(new Array[Byte](FileService.bufferByte - mimeLengthBytes.size))
   }
 }
