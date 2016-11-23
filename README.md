@@ -60,3 +60,13 @@ then we can guarantee the user will read the latest data written.
 - We do sacrifice availability since if less than minimum servers are 'up' 
 then the entire FS is not available 
 
+
+
+#Usage
+    
+    # post file
+    curl -X POST -H "Content-Type: image/png" -H "Cache-Control: no-cache"  "http://localhost:9000/1" --upload-file banner.png
+    # get file
+    curl -X GET -H "Cache-Control: no-cache" "http://localhost:9000/1" --output 1.png
+    # get meta data
+    curl -X GET -H "Cache-Control: no-cach" "http://localhost:9000/metadata/1"
