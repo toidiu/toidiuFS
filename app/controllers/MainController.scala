@@ -1,12 +1,11 @@
 package controllers
 
-import java.io.InputStream
-import java.util.concurrent.TimeUnit
+import java.io.{BufferedInputStream, FileInputStream}
 
 import akka.NotUsed
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
-import akka.stream.scaladsl.{Flow, Sink, Source, StreamConverters}
+import akka.stream.scaladsl.{Flow, Sink, Source}
 import akka.util.{ByteString, Timeout}
 import fileUtils.FileService
 import fileUtils.dbx.DbxService
@@ -20,7 +19,7 @@ import io.circe.syntax._
 import models._
 import play.api.http.HttpEntity
 import play.api.mvc.{Action, Controller, ResponseHeader, Result}
-import utils.{AppUtils, FutureUtil, SplittableInputStream, TimeUtils}
+import utils.{AppUtils, FutureUtil, TimeUtils}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -70,22 +69,15 @@ class MainController extends Controller {
   }
 
 
-  def postFile(key: String) = Action.async(AppUtils.streamBP) {
+  def postFile(key: String) = Action.async(parse.temporaryFile) {
+    //  def postFile(key: String) = Action.async(AppUtils.streamBP) {
     req =>
 
-      val reqs = Source(0 to 10)
-      val otherSink: Sink[Int, NotUsed] =
-        Flow[Int].alsoTo(Sink.foreach(println(_))).to(Sink.foreach(println))
-      //req.runWith(otherSink)
-      val s = reqs.runWith(otherSink)
-//      s.run()
+//      val reqs = Source(0 to 10)
+//      val otherSink: Sink[Int, NotUsed] =
+//        Flow[Int].alsoTo(Sink.foreach(println(_))).to(Sink.foreach(println))
+//      val s = reqs.runWith(otherSink)
 
-
-
-//      req.body.mapMaterializedValue(d => (d, d))
-//      val otherSink: Sink[ByteString, NotUsed] = Flow[ByteString].alsoTo(Sink.foreach(println(_))).to(Sink.ignore)
-//      req.body.runWith(otherSink)
-//      req.body.to(otherSink).run()
 
       val mime = req.headers.get("Content-Type").getOrElse(throw new Exception("no mime type"))
       val length = req.headers.get("content-length").getOrElse(throw new Exception("no content length"))
@@ -101,21 +93,28 @@ class MainController extends Controller {
       //file stream
 
 
-      val inputStream: InputStream = req.body.runWith(StreamConverters.asInputStream(FiniteDuration(5, TimeUnit.SECONDS)))
-            val s3IS = new SplittableInputStream(inputStream)
-//            val dbxIS = s3IS.split
+      //      val inputStream: InputStream = req.body.runWith(StreamConverters.asInputStream(FiniteDuration(5, TimeUnit.SECONDS)))
+      //            val s3IS = new SplittableInputStream(inputStream)
+      //            val dbxIS = s3IS.split
 
       //save the file
-//      val s3 = S3Service.postFile(s3Bytes, key, inputStream)
-      val s3 = S3Service.postFile(s3Bytes, key, s3IS)
-//      val dbx = DbxService.postFile(dbxBytes, key, dbxIS)
+      //      val s3 = S3Service.postFile(s3Bytes, key, inputStream)
+      //      val dbx = DbxService.postFile(dbxBytes, key, dbxIS)
+//      val fis = new FileInputStream(req.body.file)
+//      val bis = new BufferedInputStream(fis)
+//      bis.mark(0)
+//      bis.reset()
+//      fis.getChannel.position(0)
+
       val res = for {
-        s <- s3
-//        d <- dbx
-      } yield (s)
-//      inputStream.close()
-//            s3IS.close()
-//            dbxIS.close()
+        s <- S3Service.postFile(s3Bytes, key, new FileInputStream(req.body.file))
+//        sd = fis.getChannel.position(0)
+//      q = bis.reset()
+        d <- DbxService.postFile(dbxBytes, key, new FileInputStream(req.body.file))
+      } yield (s, d)
+      //      inputStream.close()
+      //            s3IS.close()
+      //            dbxIS.close()
 
       res.map(d => Ok(d.toString))
   }
