@@ -44,7 +44,8 @@ object AppUtils {
     // handling any errors we could map to something like
     // a Left(BadRequest("error")). Since we're not
     // we just wrap the source in a Right(...)
-    Accumulator.source[ByteString]
-      .map(Right.apply)
+    val s = Accumulator.source[ByteString]
+      .map(d => Right.apply(d))
+    s
   }
 }

@@ -3,9 +3,10 @@ package controllers
 import java.io.InputStream
 import java.util.concurrent.TimeUnit
 
+import akka.NotUsed
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
-import akka.stream.scaladsl.StreamConverters
+import akka.stream.scaladsl.{Flow, Sink, Source, StreamConverters}
 import akka.util.{ByteString, Timeout}
 import fileUtils.FileService
 import fileUtils.dbx.DbxService
@@ -42,12 +43,12 @@ class MainController extends Controller {
     val s3 = S3Service.getFile(key)
 
     FutureUtil.first(Seq(s3, s3)).flatMap {
-//      case (Success(res), _) => Future(Ok.chunked(res))
+      //      case (Success(res), _) => Future(Ok.chunked(res))
       case (Success(res), _) =>
         Future(Result(
-        header = ResponseHeader(200, Map.empty),
-        body = HttpEntity.Streamed(res, None, Some("image/png"))
-      ))
+          header = ResponseHeader(200, Map.empty),
+          body = HttpEntity.Streamed(res, None, Some("image/png"))
+        ))
       case (Failure(err), res) => res.head.map(e => Ok.chunked(e))
     }
   }
@@ -71,6 +72,21 @@ class MainController extends Controller {
 
   def postFile(key: String) = Action.async(AppUtils.streamBP) {
     req =>
+
+      val reqs = Source(0 to 10)
+      val otherSink: Sink[Int, NotUsed] =
+        Flow[Int].alsoTo(Sink.foreach(println(_))).to(Sink.foreach(println))
+      //req.runWith(otherSink)
+      val s = reqs.runWith(otherSink)
+//      s.run()
+
+
+
+//      req.body.mapMaterializedValue(d => (d, d))
+//      val otherSink: Sink[ByteString, NotUsed] = Flow[ByteString].alsoTo(Sink.foreach(println(_))).to(Sink.ignore)
+//      req.body.runWith(otherSink)
+//      req.body.to(otherSink).run()
+
       val mime = req.headers.get("Content-Type").getOrElse(throw new Exception("no mime type"))
       val length = req.headers.get("content-length").getOrElse(throw new Exception("no content length"))
       require(length forall Character.isDigit)
@@ -83,20 +99,23 @@ class MainController extends Controller {
       val s3Bytes: ByteString = FileService.buildS3Meta(s3Meta)
 
       //file stream
+
+
       val inputStream: InputStream = req.body.runWith(StreamConverters.asInputStream(FiniteDuration(5, TimeUnit.SECONDS)))
-//      val s3IS = new SplittableInputStream(inputStream)
-//      val dbxIS = s3IS.split
+            val s3IS = new SplittableInputStream(inputStream)
+//            val dbxIS = s3IS.split
 
       //save the file
-      val s3 = S3Service.postFile(s3Bytes, key, inputStream)
-      val dbx = DbxService.postFile(dbxBytes, key, inputStream)
+//      val s3 = S3Service.postFile(s3Bytes, key, inputStream)
+      val s3 = S3Service.postFile(s3Bytes, key, s3IS)
+//      val dbx = DbxService.postFile(dbxBytes, key, dbxIS)
       val res = for {
         s <- s3
-        d <- dbx
+//        d <- dbx
       } yield (s)
-      inputStream.close()
-//      s3IS.close()
-//      dbxIS.close()
+//      inputStream.close()
+//            s3IS.close()
+//            dbxIS.close()
 
       res.map(d => Ok(d.toString))
   }
