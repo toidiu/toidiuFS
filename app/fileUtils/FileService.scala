@@ -1,5 +1,7 @@
 package fileUtils
 
+import java.io.InputStream
+
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.Source
@@ -20,11 +22,12 @@ trait FileService {
   val wsClient = NingWSClient()
 
 
-  def postFile(meta: ByteString, key: String, stream: Source[ByteString, _]): Future[Either[_, Boolean]]
+  def postFile(meta: ByteString, key: String, inputStream: InputStream): Future[Either[_, Boolean]]
 
   def getFile(key: String): Future[Source[ByteString, _]]
 
-  def getMeta(key: String): Future[Source[ByteString, _]]
+//  def getMeta(key: String): Future[Source[ByteString, _]]
+  def getMeta(key: String): Future[String]
 }
 
 object FileService {

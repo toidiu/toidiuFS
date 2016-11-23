@@ -2,7 +2,6 @@ package fileUtils.s3
 
 import java.io.InputStream
 import java.util
-import java.util.concurrent.TimeUnit
 
 import akka.stream.scaladsl.{Source, StreamConverters}
 import akka.util.ByteString
@@ -14,7 +13,6 @@ import utils.AppUtils
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
-import scala.concurrent.duration.FiniteDuration
 
 /**
   * Created by toidiu on 11/17/16.
@@ -25,16 +23,14 @@ object S3Service extends FileService {
   val s3: AmazonS3 = new AmazonS3Client(cred)
   val bucket = s3.createBucket(AppUtils.s3Bucket)
 
-  override def postFile(meta: ByteString, key: String, stream: Source[ByteString, _]): Future[Either[_, Boolean]] = {
-    val inputStream: InputStream = stream.runWith(StreamConverters.asInputStream(FiniteDuration(3, TimeUnit.SECONDS)))
-
-    val meta: ObjectMetadata = new ObjectMetadata()
+  override def postFile(meta: ByteString, key: String, inputStream: InputStream): Future[Either[_, Boolean]] = {
+    val metaObj: ObjectMetadata = new ObjectMetadata()
     val map: util.Map[String, String] = new util.HashMap()
-    map.put("meta", meta.toString)
-    meta.setUserMetadata(map)
+    map.put("meta", meta.utf8String)
+    metaObj.setUserMetadata(map)
 
     val fut: Future[Either[_, Boolean]] = for {
-      s <- Future(s3.putObject(bucket.getName, key, inputStream, meta))
+      s <- Future(s3.putObject(bucket.getName, key, inputStream, metaObj))
     } yield Right(true)
 
 
@@ -46,12 +42,18 @@ object S3Service extends FileService {
     Future(StreamConverters.fromInputStream(op.getObjectContent))
   }
 
-  override def getMeta(key: String): Future[Source[ByteString, _]] = {
+//  override def getMeta(key: String): Future[Source[ByteString, _]] = {
+    override def getMeta(key: String): Future[String] = {
     val op: Future[ObjectMetadata] = Future(s3.getObjectMetadata(bucket.getName, key))
 
-    Future(Source.fromFuture {
-      op.map(m => ByteString(m.getUserMetaDataOf("meta")))
-    })
+    op.flatMap(e => Future(e.getUserMetaDataOf("meta")))
+
+
+    //    Future(Source.fromFuture(
+    //      op.map { m =>
+    //        ByteString(m.getUserMetaDataOf("meta"))
+    //      }
+    //    ))
   }
 
 }
