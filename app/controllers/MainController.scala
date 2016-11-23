@@ -1,15 +1,10 @@
 package controllers
 
-import java.io.{BufferedInputStream, FileInputStream}
+import java.io.FileInputStream
 
-import akka.NotUsed
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
-import akka.stream.scaladsl.{Flow, Sink, Source}
 import akka.util.{ByteString, Timeout}
-import fileUtils.FileService
-import fileUtils.dbx.DbxService
-import fileUtils.s3.S3Service
 import io.circe._
 import io.circe.generic.JsonCodec
 import io.circe.generic.auto._
@@ -19,6 +14,9 @@ import io.circe.syntax._
 import models._
 import play.api.http.HttpEntity
 import play.api.mvc.{Action, Controller, ResponseHeader, Result}
+import replica.FileService
+import replica.dbx.DbxService
+import replica.s3.S3Service
 import utils.{AppUtils, FutureUtil, TimeUtils}
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -69,54 +67,26 @@ class MainController extends Controller {
   }
 
 
-  def postFile(key: String) = Action.async(parse.temporaryFile) {
-    //  def postFile(key: String) = Action.async(AppUtils.streamBP) {
-    req =>
+  def postFile(key: String) = Action.async(parse.temporaryFile) { req =>
 
-//      val reqs = Source(0 to 10)
-//      val otherSink: Sink[Int, NotUsed] =
-//        Flow[Int].alsoTo(Sink.foreach(println(_))).to(Sink.foreach(println))
-//      val s = reqs.runWith(otherSink)
+    val mime = req.headers.get("Content-Type").getOrElse(throw new Exception("no mime type"))
+    val length = req.headers.get("content-length").getOrElse(throw new Exception("no content length"))
+    require(length forall Character.isDigit)
 
+    //get meta data
+    val uploadTime: String = TimeUtils.zoneAsString
+    val dbxMeta: DbxMeta = DbxMeta(length.toLong, mime, uploadTime, "dropbox", DbxDteail(DbxService.getPath(key)))
+    val dbxBytes = FileService.buildDbxMeta(dbxMeta)
+    val s3Meta: S3Meta = S3Meta(length.toLong, mime, uploadTime, "s3", S3Dteail(AppUtils.s3Bucket, key))
+    val s3Bytes: ByteString = FileService.buildS3Meta(s3Meta)
 
-      val mime = req.headers.get("Content-Type").getOrElse(throw new Exception("no mime type"))
-      val length = req.headers.get("content-length").getOrElse(throw new Exception("no content length"))
-      require(length forall Character.isDigit)
+    //file stream
+    val res = for {
+      s <- S3Service.postFile(s3Bytes, key, new FileInputStream(req.body.file))
+      d <- DbxService.postFile(dbxBytes, key, new FileInputStream(req.body.file))
+    } yield (s, d)
 
-      //get meta data
-      val uploadTime: String = TimeUtils.zoneAsString
-      val dbxMeta: DbxMeta = DbxMeta(length.toLong, mime, uploadTime, "dropbox", DbxDteail(DbxService.getPath(key)))
-      val dbxBytes = FileService.buildDbxMeta(dbxMeta)
-      val s3Meta: S3Meta = S3Meta(length.toLong, mime, uploadTime, "s3", S3Dteail(AppUtils.s3Bucket, key))
-      val s3Bytes: ByteString = FileService.buildS3Meta(s3Meta)
-
-      //file stream
-
-
-      //      val inputStream: InputStream = req.body.runWith(StreamConverters.asInputStream(FiniteDuration(5, TimeUnit.SECONDS)))
-      //            val s3IS = new SplittableInputStream(inputStream)
-      //            val dbxIS = s3IS.split
-
-      //save the file
-      //      val s3 = S3Service.postFile(s3Bytes, key, inputStream)
-      //      val dbx = DbxService.postFile(dbxBytes, key, dbxIS)
-//      val fis = new FileInputStream(req.body.file)
-//      val bis = new BufferedInputStream(fis)
-//      bis.mark(0)
-//      bis.reset()
-//      fis.getChannel.position(0)
-
-      val res = for {
-        s <- S3Service.postFile(s3Bytes, key, new FileInputStream(req.body.file))
-//        sd = fis.getChannel.position(0)
-//      q = bis.reset()
-        d <- DbxService.postFile(dbxBytes, key, new FileInputStream(req.body.file))
-      } yield (s, d)
-      //      inputStream.close()
-      //            s3IS.close()
-      //            dbxIS.close()
-
-      res.map(d => Ok(d.toString))
+    res.map(d => Ok(d.toString))
   }
 
 

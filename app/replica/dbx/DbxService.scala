@@ -1,4 +1,4 @@
-package fileUtils.dbx
+package replica.dbx
 
 import java.io.InputStream
 import java.sql.Date
@@ -9,8 +9,8 @@ import akka.util.ByteString
 import com.dropbox.core.DbxRequestConfig
 import com.dropbox.core.v2.DbxClientV2
 import com.dropbox.core.v2.files.WriteMode
-import fileUtils.FileService
-import fileUtils.FileService.bufferByte
+import replica.FileService
+import replica.FileService.bufferByte
 import utils.AppUtils
 
 import scala.concurrent.ExecutionContext.Implicits.global

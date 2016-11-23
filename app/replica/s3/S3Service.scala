@@ -1,4 +1,4 @@
-package fileUtils.s3
+package replica.s3
 
 import java.io.InputStream
 import java.util
@@ -8,7 +8,7 @@ import akka.util.ByteString
 import com.amazonaws.auth.BasicAWSCredentials
 import com.amazonaws.services.s3.model.ObjectMetadata
 import com.amazonaws.services.s3.{AmazonS3, AmazonS3Client}
-import fileUtils.FileService
+import replica.FileService
 import utils.AppUtils
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -32,7 +32,6 @@ object S3Service extends FileService {
     val fut: Future[Either[_, Boolean]] = for {
       s <- Future(s3.putObject(bucket.getName, key, inputStream, metaObj))
     } yield Right(true)
-
 
     fut.recover { case e: Exception => Left(e.toString) }
   }
