@@ -11,24 +11,30 @@ import play.api.mvc.BodyParser
   */
 object AppUtils {
   val conf = ConfigFactory.load()
-  var dropboxEnable = conf.getBoolean("dropbox.enable")
-  var dropboxToken :String = conf.getString("dropbox.token")
-  var dropboxPath :String = conf.getString("dropbox.path")
+  val dbxEnable = conf.getBoolean("dropbox.enable")
+  val dbxToken: String = conf.getString("dropbox.token")
+  val dbxPath: String = conf.getString("dropbox.path")
+//  val dbxWhitelist = conf.getList("dropbox.whitelist")
+//  val dbxBlacklist = conf.getList("dropbox.blacklist")
 
-  var s3Enable = conf.getBoolean("s3.enable")
-  var s3AccessKey :String = conf.getString("s3.accessKey")
-  var s3SecretKey :String = conf.getString("s3.secretKey")
-  var s3Bucket :String = conf.getString("s3.bucket")
+  val s3Enable = conf.getBoolean("s3.enable")
+  val s3AccessKey: String = conf.getString("s3.accessKey")
+  val s3SecretKey: String = conf.getString("s3.secretKey")
+  val s3Bucket: String = conf.getString("s3.bucket")
+//  val s3Whitelist = conf.getList("s3.whitelist")
+//  val s3Blacklist = conf.getList("s3.blacklist")
 
+  val repMin: Int = conf.getInt("toidiufs.replicationMin")
+
+
+  //  replicatio minimum
 
   //-=-=-=-=-=-=-=-==-==-==-==-=-=-=-=-=-=-
   //left to do
   //-=-=-=-=-=-=-=-==-==-==-==-=-=-=-=-=-=-
-//  WHITE/BLACK LIST
-//    mime allowed
-//    size allowed
-//  replicatio minimum
-
+  //  WHITE/BLACK LIST
+  //    mime allowed
+  //    size allowed
 
 
   def streamBP: BodyParser[Source[ByteString, _]] = BodyParser { _ =>

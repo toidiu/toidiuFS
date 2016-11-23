@@ -17,7 +17,8 @@ import io.circe.generic.semiauto._
 import io.circe.parser._
 import io.circe.syntax._
 import models._
-import play.api.mvc.{Action, Controller}
+import play.api.http.HttpEntity
+import play.api.mvc.{Action, Controller, ResponseHeader, Result}
 import utils.{AppUtils, FutureUtil, SplittableInputStream, TimeUtils}
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -40,8 +41,13 @@ class MainController extends Controller {
     val dbx = DbxService.getFile(key)
     val s3 = S3Service.getFile(key)
 
-    FutureUtil.first(Seq(dbx, s3)).flatMap {
-      case (Success(res), _) => Future(Ok.chunked(res))
+    FutureUtil.first(Seq(s3, s3)).flatMap {
+//      case (Success(res), _) => Future(Ok.chunked(res))
+      case (Success(res), _) =>
+        Future(Result(
+        header = ResponseHeader(200, Map.empty),
+        body = HttpEntity.Streamed(res, None, Some("image/png"))
+      ))
       case (Failure(err), res) => res.head.map(e => Ok.chunked(e))
     }
   }
@@ -78,18 +84,19 @@ class MainController extends Controller {
 
       //file stream
       val inputStream: InputStream = req.body.runWith(StreamConverters.asInputStream(FiniteDuration(5, TimeUnit.SECONDS)))
-      val s3IS = new SplittableInputStream(inputStream)
-      val dbxIS = s3IS.split
+//      val s3IS = new SplittableInputStream(inputStream)
+//      val dbxIS = s3IS.split
 
       //save the file
-      val s3 = S3Service.postFile(s3Bytes, key, s3IS)
-      val dbx = DbxService.postFile(dbxBytes, key, dbxIS)
+      val s3 = S3Service.postFile(s3Bytes, key, inputStream)
+      val dbx = DbxService.postFile(dbxBytes, key, inputStream)
       val res = for {
         s <- s3
         d <- dbx
-      } yield (s, d)
-      s3IS.close()
-      dbxIS.close()
+      } yield (s)
+      inputStream.close()
+//      s3IS.close()
+//      dbxIS.close()
 
       res.map(d => Ok(d.toString))
   }
