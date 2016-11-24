@@ -1,4 +1,4 @@
-package replica.dbx
+package replicas.dbx
 
 import java.io.InputStream
 import java.sql.Date
@@ -9,8 +9,14 @@ import akka.util.ByteString
 import com.dropbox.core.DbxRequestConfig
 import com.dropbox.core.v2.DbxClientV2
 import com.dropbox.core.v2.files.WriteMode
-import replica.FileService
-import replica.FileService.bufferByte
+import io.circe._
+import io.circe.generic.JsonCodec
+import io.circe.generic.auto._
+import io.circe.generic.semiauto._
+import io.circe.parser._
+import io.circe.syntax._
+import models.{DbxMeta, MetaDetail}
+import replicas.FileService
 import utils.AppUtils
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -60,9 +66,11 @@ object DbxService extends FileService {
     })
   }
 
-  override def getMeta(key: String): Future[String] = {
+  override def getMetaString(key: String): Future[String] = {
+    //fixme catch exception
     val stream = client.files().download(getPath(key)).getInputStream
-    val meta = Array.ofDim[Byte](3)
+
+    val meta = Array.ofDim[Byte](FileService.bufferByte)
     try {
       stream.read(meta)
     } finally {
@@ -70,6 +78,14 @@ object DbxService extends FileService {
     }
 
     Future(ByteString(meta.filterNot(_ == 0)).utf8String)
+  }
+
+  override def buildMetaBytes(bytes: Long, mime: String,
+                              uploadedAt: String, key: String): ByteString = {
+    val detail: MetaDetail = MetaDetail(Some(DbxService.getPath(key)))
+    val jsonString = DbxMeta(bytes, mime, uploadedAt, "dropbox", detail).asJson.noSpaces
+    val metaByteString = ByteString(jsonString)
+    metaByteString ++ ByteString.fromArray(new Array[Byte](FileService.bufferByte - metaByteString.size))
   }
 
 }

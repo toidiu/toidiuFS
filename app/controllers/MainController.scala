@@ -4,7 +4,7 @@ import java.io.FileInputStream
 
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
-import akka.util.{ByteString, Timeout}
+import akka.util.Timeout
 import io.circe._
 import io.circe.generic.JsonCodec
 import io.circe.generic.auto._
@@ -14,14 +14,15 @@ import io.circe.syntax._
 import models._
 import play.api.http.HttpEntity
 import play.api.mvc.{Action, Controller, ResponseHeader, Result}
-import replica.FileService
-import replica.dbx.DbxService
-import replica.s3.S3Service
+import replicas.FileService
+import replicas.dbx.DbxService
+import replicas.s3.S3Service
 import utils.{AppUtils, FutureUtil, TimeUtils}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.concurrent.duration._
+import scala.language.postfixOps
 import scala.util.{Failure, Success}
 
 /**
@@ -39,8 +40,7 @@ class MainController extends Controller {
     val dbx = DbxService.getFile(key)
     val s3 = S3Service.getFile(key)
 
-    FutureUtil.first(Seq(s3, s3)).flatMap {
-      //      case (Success(res), _) => Future(Ok.chunked(res))
+    FutureUtil.first(Seq(s3, dbx)).flatMap {
       case (Success(res), _) =>
         Future(Result(
           header = ResponseHeader(200, Map.empty),
@@ -52,41 +52,78 @@ class MainController extends Controller {
 
   def getMeta(key: String) = Action.async { req =>
     val meta = for {
-      d <- DbxService.getMeta(key)
-      s <- S3Service.getMeta(key)
+      d <- DbxService.getMetaString(key)
+      s <- S3Service.getMetaString(key)
     } yield (d, s)
 
-
-
     meta.map(strTup => (decode[DbxMeta](strTup._1), decode[S3Meta](strTup._2))).map {
-      case (Right(a), Right(b)) => val ret = Meta((a, b)).asJson.spaces2; Ok(ret)
-      case (Right(a), Left(b)) => val ret = a.asJson.spaces2; Ok(ret + "\n" + b.toString)
-      case (Left(a), Right(b)) => val ret = b.asJson.spaces2; Ok(a.toString + "\n" + ret)
-      case (Left(a), Left(b)) => BadRequest(a.toString + "\n" + b.toString)
+      case (Right(d), Right(s)) => Ok(Meta((d, s)).asJson.spaces2)
+      case (Right(d), Left(s)) => Ok(Json.arr(d.asJson, MetaError("s3", s.getMessage).asJson).spaces2)
+      case (Left(d), Right(s)) => Ok(Json.arr(s.asJson, MetaError("dropbox", d.getMessage).asJson).spaces2)
+      case (Left(d), Left(s)) =>
+        val dJson = MetaError("dropbox", d.toString).asJson
+        val sJson = MetaError("s3", s.getMessage).asJson
+        BadRequest(Json.arr(dJson, sJson).spaces2)
     }
   }
 
+  type ConfigParam = (String, Long)
+
+  def configFilter(key: String, mime: String, length: Long): Either[String, List[FileService]] = {
+
+    //test whitelist
+    //test content length
+    val includeDbx = if (AppUtils.dbxIsWhiteList) AppUtils.dbxMimeList.contains(mime) else !AppUtils.dbxMimeList.contains(mime)
+
+
+    AppUtils.s3IsWhiteList
+    AppUtils.s3MimeList
+
+    AppUtils.repMin
+
+    Right(List(DbxService, S3Service))
+  }
 
   def postFile(key: String) = Action.async(parse.temporaryFile) { req =>
 
+
     val mime = req.headers.get("Content-Type").getOrElse(throw new Exception("no mime type"))
-    val length = req.headers.get("content-length").getOrElse(throw new Exception("no content length"))
-    require(length forall Character.isDigit)
+    val length = req.body.file.length()
 
-    //get meta data
-    val uploadTime: String = TimeUtils.zoneAsString
-    val dbxMeta: DbxMeta = DbxMeta(length.toLong, mime, uploadTime, "dropbox", DbxDteail(DbxService.getPath(key)))
-    val dbxBytes = FileService.buildDbxMeta(dbxMeta)
-    val s3Meta: S3Meta = S3Meta(length.toLong, mime, uploadTime, "s3", S3Dteail(AppUtils.s3Bucket, key))
-    val s3Bytes: ByteString = FileService.buildS3Meta(s3Meta)
+    val futConfig = configFilter(key, mime, length) match {
+      case Right(l) =>
+        val uploadTime: String = TimeUtils.zoneAsString
+        val f = for (i <- l) yield {
+          val metaBytes = i.buildMetaBytes(length, mime, uploadTime, key)
+          i.postFile(metaBytes, key, new FileInputStream(req.body.file))
+        }
+        Future.sequence(f)
 
-    //file stream
-    val res = for {
-      s <- S3Service.postFile(s3Bytes, key, new FileInputStream(req.body.file))
-      d <- DbxService.postFile(dbxBytes, key, new FileInputStream(req.body.file))
-    } yield (s, d)
+      //check for lock file
+      //check for server availability
+      //attempt upload of file
+      //      case Right(Nil) =>
+      //
+      //      case Left(err) => BadRequest(err)
+    }
+    //
+    //
+    //    //get meta data
+    //    val uploadTime: String = TimeUtils.zoneAsString
+    //    //    val dbxMeta: DbxMeta = DbxMeta(length.toLong, mime, uploadTime, "dropbox", MetaDetail(Some(DbxService.getPath(key))))
+    //    val dbxBytes = DbxService.buildMetaBytes(length, mime, uploadTime, key)
+    //    //    val s3Meta: S3Meta = S3Meta(length.toLong, mime, uploadTime, "s3", MetaDetail(None, Some(AppUtils.s3Bucket), Some(key)))
+    //    val s3Bytes: ByteString = S3Service.buildMetaBytes(length, mime, uploadTime, key)
+    //
+    //    //file stream
+    //    val res = for {
+    //      s <- S3Service.postFile(s3Bytes, key, new FileInputStream(req.body.file))
+    //      d <- DbxService.postFile(dbxBytes, key, new FileInputStream(req.body.file))
+    //    } yield (s, d)
+    //
+    //    res.map(d => Ok(d.toString))
+    futConfig.map(_ => Ok("d"))
 
-    res.map(d => Ok(d.toString))
   }
 
 

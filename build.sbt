@@ -17,7 +17,6 @@ libraryDependencies ++= {
   Seq(
     "com.typesafe.akka" %% "akka-slf4j" % akkaV
     , "com.typesafe.akka" %% "akka-stream" % akkaV
-    , ws
 
 //    , "org.typelevel" %% "cats" % catsV
     , "com.amazonaws" % "aws-java-sdk-s3" % s3V

@@ -1,4 +1,4 @@
-package replica.s3
+package replicas.s3
 
 import java.io.InputStream
 import java.util
@@ -8,7 +8,14 @@ import akka.util.ByteString
 import com.amazonaws.auth.BasicAWSCredentials
 import com.amazonaws.services.s3.model.ObjectMetadata
 import com.amazonaws.services.s3.{AmazonS3, AmazonS3Client}
-import replica.FileService
+import io.circe._
+import io.circe.generic.JsonCodec
+import io.circe.generic.auto._
+import io.circe.generic.semiauto._
+import io.circe.parser._
+import io.circe.syntax._
+import models.{DbxMeta, MetaDetail, S3Meta}
+import replicas.FileService
 import utils.AppUtils
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -41,12 +48,20 @@ object S3Service extends FileService {
     Future(StreamConverters.fromInputStream(op.getObjectContent))
   }
 
-    override def getMeta(key: String): Future[String] = {
+  override def getMetaString(key: String): Future[String] = {
     val op: Future[ObjectMetadata] = Future(s3.getObjectMetadata(bucket.getName, key))
 
     op.flatMap(e => Future(e.getUserMetaDataOf("meta")))
   }
 
+  def buildS3Meta(meta: S3Meta): ByteString = ByteString(meta.asJson.noSpaces)
+
+  override def buildMetaBytes(bytes: Long, mime: String,
+                              uploadedAt: String, key: String): ByteString = {
+    val detail: MetaDetail = MetaDetail(None, Some(AppUtils.s3Bucket), Some(key))
+    val jsonString = S3Meta(bytes, mime, uploadedAt, "s3", detail).asJson.noSpaces
+    ByteString(jsonString)
+  }
 }
 
 
