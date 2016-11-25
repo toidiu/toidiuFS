@@ -11,7 +11,7 @@ import io.circe.generic.auto._
 import io.circe.generic.semiauto._
 import io.circe.parser._
 import io.circe.syntax._
-import logic.CheckConfig
+import logic.DataStoreLogic
 import models._
 import play.api.http.HttpEntity
 import play.api.mvc.{Action, Controller, ResponseHeader, Result}
@@ -73,38 +73,25 @@ class MainController extends Controller {
     val mime = req.headers.get("Content-Type").getOrElse(throw new Exception("no mime type"))
     val length = req.body.file.length()
 
-    val futConfig = CheckConfig.configFilter(key, mime, length) match {
+    val futConfig = DataStoreLogic.configFilter(mime, length) match {
       case Right(list) =>
-        val uploadTime: String = TimeUtils.zoneAsString
+
+
+        //check for lock file
+        //check for server availability
+
+
+
+        //attempt upload of file
+      val uploadTime: String = TimeUtils.zoneAsString
         val f = for (i <- list) yield {
           val metaBytes = i.buildMetaBytes(length, mime, uploadTime, key)
           i.postFile(metaBytes, key, new FileInputStream(req.body.file))
         }
         Future.sequence(f).map(d => Ok)
 
-      //check for lock file
-      //check for server availability
-      //attempt upload of file
-      //      case Right(Nil) =>
-      //
       case Left(err) => Future(BadRequest(err))
     }
-    //
-    //
-    //    //get meta data
-    //    val uploadTime: String = TimeUtils.zoneAsString
-    //    //    val dbxMeta: DbxMeta = DbxMeta(length.toLong, mime, uploadTime, "dropbox", MetaDetail(Some(DbxService.getPath(key))))
-    //    val dbxBytes = DbxService.buildMetaBytes(length, mime, uploadTime, key)
-    //    //    val s3Meta: S3Meta = S3Meta(length.toLong, mime, uploadTime, "s3", MetaDetail(None, Some(AppUtils.s3Bucket), Some(key)))
-    //    val s3Bytes: ByteString = S3Service.buildMetaBytes(length, mime, uploadTime, key)
-    //
-    //    //file stream
-    //    val res = for {
-    //      s <- S3Service.postFile(s3Bytes, key, new FileInputStream(req.body.file))
-    //      d <- DbxService.postFile(dbxBytes, key, new FileInputStream(req.body.file))
-    //    } yield (s, d)
-    //
-    //    res.map(d => Ok(d.toString))
 
     futConfig
   }
