@@ -11,13 +11,13 @@ import io.circe.generic.auto._
 import io.circe.generic.semiauto._
 import io.circe.parser._
 import io.circe.syntax._
+import logic.CheckConfig
 import models._
 import play.api.http.HttpEntity
 import play.api.mvc.{Action, Controller, ResponseHeader, Result}
-import replicas.FileService
 import replicas.dbx.DbxService
 import replicas.s3.S3Service
-import utils.{AppUtils, FutureUtil, TimeUtils}
+import utils.{FutureUtil, TimeUtils}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -67,44 +67,27 @@ class MainController extends Controller {
     }
   }
 
-  type ConfigParam = (String, Long)
-
-  def configFilter(key: String, mime: String, length: Long): Either[String, List[FileService]] = {
-
-    //test whitelist
-    //test content length
-    val includeDbx = if (AppUtils.dbxIsWhiteList) AppUtils.dbxMimeList.contains(mime) else !AppUtils.dbxMimeList.contains(mime)
-
-
-    AppUtils.s3IsWhiteList
-    AppUtils.s3MimeList
-
-    AppUtils.repMin
-
-    Right(List(DbxService, S3Service))
-  }
-
   def postFile(key: String) = Action.async(parse.temporaryFile) { req =>
 
 
     val mime = req.headers.get("Content-Type").getOrElse(throw new Exception("no mime type"))
     val length = req.body.file.length()
 
-    val futConfig = configFilter(key, mime, length) match {
-      case Right(l) =>
+    val futConfig = CheckConfig.configFilter(key, mime, length) match {
+      case Right(list) =>
         val uploadTime: String = TimeUtils.zoneAsString
-        val f = for (i <- l) yield {
+        val f = for (i <- list) yield {
           val metaBytes = i.buildMetaBytes(length, mime, uploadTime, key)
           i.postFile(metaBytes, key, new FileInputStream(req.body.file))
         }
-        Future.sequence(f)
+        Future.sequence(f).map(d => Ok)
 
       //check for lock file
       //check for server availability
       //attempt upload of file
       //      case Right(Nil) =>
       //
-      //      case Left(err) => BadRequest(err)
+      case Left(err) => Future(BadRequest(err))
     }
     //
     //
@@ -122,8 +105,8 @@ class MainController extends Controller {
     //    } yield (s, d)
     //
     //    res.map(d => Ok(d.toString))
-    futConfig.map(_ => Ok("d"))
 
+    futConfig
   }
 
 

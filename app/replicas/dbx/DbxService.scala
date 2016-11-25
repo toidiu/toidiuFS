@@ -29,8 +29,8 @@ import scala.concurrent.duration.FiniteDuration
 
 object DbxService extends FileService {
 
-  val config: DbxRequestConfig = DbxRequestConfig.newBuilder("toidiuFS").withUserLocale("en_US").build()
-  val client: DbxClientV2 = new DbxClientV2(config, AppUtils.dbxToken)
+  lazy val config: DbxRequestConfig = DbxRequestConfig.newBuilder("toidiuFS").withUserLocale("en_US").build()
+  lazy val client: DbxClientV2 = new DbxClientV2(config, AppUtils.dbxToken)
 
   def getPath(key: String): String = AppUtils.dbxPath + key
 
