@@ -52,8 +52,8 @@ class MainController extends Controller {
 
   def getMeta(key: String) = Action.async { req =>
     val meta = for {
-      d <- DbxService.getMetaString(key)
-      s <- S3Service.getMetaString(key)
+      d <- DbxService.getMeta(key)
+      s <- S3Service.getMeta(key)
     } yield (d, s)
 
     meta.map(strTup => (decode[DbxMeta](strTup._1), decode[S3Meta](strTup._2))).map {
@@ -68,32 +68,44 @@ class MainController extends Controller {
   }
 
   def postFile(key: String) = Action.async(parse.temporaryFile) { req =>
-
-
     val mime = req.headers.get("Content-Type").getOrElse(throw new Exception("no mime type"))
     val length = req.body.file.length()
 
-    val futConfig = DataStoreLogic.configFilter(mime, length) match {
-      case Right(list) =>
-
-
-        //check for lock file
-        //check for server availability
-
-
-
-        //attempt upload of file
-      val uploadTime: String = TimeUtils.zoneAsString
-        val f = for (i <- list) yield {
-          val metaBytes = i.buildMetaBytes(length, mime, uploadTime, key)
-          i.postFile(metaBytes, key, new FileInputStream(req.body.file))
+    //check config restraints
+    DataStoreLogic.checkConfigRestraints(mime, length) match {
+      case Right(configList) =>
+        //check for lock file/ availability
+        DataStoreLogic.checkAndAcquireLock(key, configList).flatMap {
+          case Right(lockList) =>
+            //attempt upload of file
+            val uploadTime: String = TimeUtils.zoneAsString
+            val ret = for (i <- lockList) yield {
+              val metaBytes = i.buildMetaBytes(length, mime, uploadTime, key)
+              i.postFile(metaBytes, key, new FileInputStream(req.body.file))
+            }
+            Future.sequence(ret).map(d => Ok(d.toString()))
+          case Left(err) => Future(BadRequest(err))
         }
-        Future.sequence(f).map(d => Ok)
-
       case Left(err) => Future(BadRequest(err))
     }
+  }
 
-    futConfig
+  def acquireLock(key: String) = Action.async { req =>
+    S3Service.acquireLock(key).flatMap(a =>
+      DbxService.acquireLock(key).map(b=> Ok(a.toString + b.toString))
+    )
+  }
+
+  def getLockInfo(key: String) = Action.async { req =>
+    S3Service.inspectOrCreateLock(key).flatMap(a =>
+      DbxService.inspectOrCreateLock(key).map(b => Ok(a.toString + b.toString))
+    )
+  }
+
+  def releaseLock(key: String) = Action.async { req =>
+    S3Service.releaseLock(key).flatMap(a =>
+      DbxService.releaseLock(key).map(b => Ok(a.toString + b.toString))
+    )
   }
 
 

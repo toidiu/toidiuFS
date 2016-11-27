@@ -15,6 +15,16 @@ case class MetaError(backend: String, error: String)
 
 case class MetaDetail(path: Option[String] = None, bucket: Option[String] = None, key: Option[String] = None)
 
+//object bla {
+//  implicit val encodeFoo: Encoder[MetaDetail] = new Encoder[MetaDetail] {
+//    final def apply(detail: MetaDetail): Json = {
+//      val map = Map("", Json.fromString(""))
+//      detail.
+//       JsonObject.fromMap(map).asJson
+//    }
+//  }
+//}
+
 //region Dbx-=-=-=-=-=-=-=-==-==-==-==-=-=-=-=-=-=-
 
 sealed trait MetaServer {

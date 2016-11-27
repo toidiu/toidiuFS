@@ -2,3 +2,7 @@ GET         /                     controllers.MainController.index
 GET         /:key                 controllers.MainController.getFile(key:String)
 POST        /:key                 controllers.MainController.postFile(key:String)
 GET         /metadata/:key        controllers.MainController.getMeta(key:String)
+
+GET         /test1/:key            controllers.MainController.acquireLock(key:String)
+GET         /test2/:key           controllers.MainController.getLockInfo(key:String)
+GET         /test3/:key           controllers.MainController.releaseLock(key:String)
