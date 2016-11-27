@@ -49,7 +49,8 @@ class MainController extends Controller {
         FutureUtil.first(getFileList).flatMap {
           case (Success(res), _) =>
             Future(Result(
-              header = ResponseHeader(200, Map("Content-Disposition" -> ("attachment; filename=" + key + mimeToExtension(meta.mime)))),
+//              header = ResponseHeader(200, Map("Content-Disposition" -> ("attachment; filename=" + key + mimeToExtension(meta.mime)))),
+              header = ResponseHeader(200, Map.empty),
               body = HttpEntity.Streamed(res, None, Some(meta.mime))
             ))
 
