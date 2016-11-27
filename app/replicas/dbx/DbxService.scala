@@ -15,7 +15,7 @@ import io.circe.generic.auto._
 import io.circe.generic.semiauto._
 import io.circe.parser._
 import io.circe.syntax._
-import models.{DbxMeta, FSLock, MetaDetail}
+import models.{FSLock, MetaDetail, MetaServer}
 import replicas.FileService
 import utils.{AppUtils, TimeUtils}
 
@@ -84,7 +84,7 @@ object DbxService extends FileService {
   override def buildMetaBytes(bytes: Long, mime: String,
                               uploadedAt: String, key: String): ByteString = {
     val detail: MetaDetail = MetaDetail(Some(DbxService.getPath(key)))
-    val jsonString = DbxMeta(bytes, mime, uploadedAt, "dropbox", detail).asJson.noSpaces
+    val jsonString = MetaServer(bytes, mime, uploadedAt, "dropbox", detail).asJson.noSpaces
     val metaByteString = ByteString(jsonString)
     metaByteString ++ ByteString.fromArray(new Array[Byte](FileService.bufferByte - metaByteString.size))
   }

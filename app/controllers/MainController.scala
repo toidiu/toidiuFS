@@ -11,7 +11,7 @@ import io.circe.generic.auto._
 import io.circe.generic.semiauto._
 import io.circe.parser._
 import io.circe.syntax._
-import logic.DataStoreLogic
+import logic.{FsReadLogic, FsWriteLogic}
 import models._
 import play.api.http.HttpEntity
 import play.api.mvc.{Action, Controller, ResponseHeader, Result}
@@ -37,27 +37,32 @@ class MainController extends Controller {
   def index = Action.async(Future(Ok("Hi")))
 
   def getFile(key: String) = Action.async { req =>
-    val dbx = DbxService.getFile(key)
-    val s3 = S3Service.getFile(key)
 
-    FutureUtil.first(Seq(s3, dbx)).flatMap {
-      case (Success(res), _) =>
-        Future(Result(
-          header = ResponseHeader(200, Map.empty),
-          body = HttpEntity.Streamed(res, None, Some("image/png"))
-        ))
-      case (Failure(err), res) => res.head.map(e => Ok.chunked(e))
+    //fixme check its its enabled... and also abstract out to list
+    FsReadLogic.getMostUpdatedServers(key).flatMap {
+      case Right(fsList) =>
+        FutureUtil.first(fsList.map(_.getFile(key))).flatMap {
+          case (Success(res), _) =>
+            Future(Result(
+              header = ResponseHeader(200, Map.empty),
+              body = HttpEntity.Streamed(res, None, Some("image/png"))
+            ))
+          case (Failure(e), res) => res.head.map(e => Ok.chunked(e))
+        }
+      case Left(err) => Future(BadRequest(err))
     }
   }
 
   def getMeta(key: String) = Action.async { req =>
+
+    //fixme check its its enabled... and also abstract out to list
     val meta = for {
       d <- DbxService.getMeta(key)
       s <- S3Service.getMeta(key)
     } yield (d, s)
 
-    meta.map(strTup => (decode[DbxMeta](strTup._1), decode[S3Meta](strTup._2))).map {
-      case (Right(d), Right(s)) => Ok(Meta((d, s)).asJson.spaces2)
+    meta.map(strTup => (decode[MetaServer](strTup._1), decode[MetaServer](strTup._2))).map {
+      case (Right(d), Right(s)) => Ok(Meta(d, s).asJson.spaces2)
       case (Right(d), Left(s)) => Ok(Json.arr(d.asJson, MetaError("s3", s.getMessage).asJson).spaces2)
       case (Left(d), Right(s)) => Ok(Json.arr(s.asJson, MetaError("dropbox", d.getMessage).asJson).spaces2)
       case (Left(d), Left(s)) =>
@@ -72,10 +77,10 @@ class MainController extends Controller {
     val length = req.body.file.length()
 
     //check config restraints
-    DataStoreLogic.checkConfigRestraints(mime, length) match {
+    FsWriteLogic.checkConfigRestraints(mime, length) match {
       case Right(configList) =>
         //check for lock file/ availability
-        DataStoreLogic.checkAndAcquireLock(key, configList).flatMap {
+        FsWriteLogic.checkAndAcquireLock(key, configList).flatMap {
           case Right(lockList) =>
             //attempt upload of file
             val uploadTime: String = TimeUtils.zoneAsString
@@ -92,7 +97,7 @@ class MainController extends Controller {
 
   def acquireLock(key: String) = Action.async { req =>
     S3Service.acquireLock(key).flatMap(a =>
-      DbxService.acquireLock(key).map(b=> Ok(a.toString + b.toString))
+      DbxService.acquireLock(key).map(b => Ok(a.toString + b.toString))
     )
   }
 

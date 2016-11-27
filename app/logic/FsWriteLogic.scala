@@ -12,7 +12,7 @@ import scala.concurrent.Future
 /**
   * Created by toidiu on 11/24/16.
   */
-object DataStoreLogic {
+object FsWriteLogic {
 
   def checkAndAcquireLock(key: String, list: List[FileService]): Future[Either[String, List[FileService]]] = {
     val futList = list.map(_.inspectOrCreateLock(key))

@@ -16,7 +16,7 @@ import io.circe.generic.auto._
 import io.circe.generic.semiauto._
 import io.circe.parser._
 import io.circe.syntax._
-import models.{FSLock, MetaDetail, S3Meta}
+import models.{FSLock, MetaDetail, MetaServer}
 import org.apache.commons.io.IOUtils
 import replicas.FileService
 import utils.{AppUtils, TimeUtils}
@@ -62,12 +62,12 @@ object S3Service extends FileService {
     op.flatMap(e => Future(e.getUserMetaDataOf(META_OBJ_KEY)))
   }
 
-  def buildS3Meta(meta: S3Meta): ByteString = ByteString(meta.asJson.noSpaces)
+  def buildS3Meta(meta: MetaServer): ByteString = ByteString(meta.asJson.noSpaces)
 
   override def buildMetaBytes(bytes: Long, mime: String,
                               uploadedAt: String, key: String): ByteString = {
     val detail: MetaDetail = MetaDetail(None, Some(AppUtils.s3Bucket), Some(key))
-    val jsonString = S3Meta(bytes, mime, uploadedAt, "s3", detail).asJson.noSpaces
+    val jsonString = MetaServer(bytes, mime, uploadedAt, "s3", detail).asJson.noSpaces
     ByteString(jsonString)
   }
 
