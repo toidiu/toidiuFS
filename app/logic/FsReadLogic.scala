@@ -21,8 +21,7 @@ import scala.concurrent.Future
   */
 object FsReadLogic {
 
-  def getMostUpdatedServers(key: String): Future[Either[String, List[FileService]]] = {
-
+  def getMostUpdatedServers(key: String): Future[Either[String, List[(FileService, MetaServer)]]] = {
     val services: Seq[FileService] = Seq(DbxService, S3Service)
     //get meta for all servers
     val futList = services.map(_.getMeta(key))
@@ -33,7 +32,6 @@ object FsReadLogic {
         .filter(_._2.isRight)
         .map(a => (a._1, a._2.right.get))
         .foldLeft(Nil: List[(FileService, MetaServer)])(filterMostUpdated)
-        .map(_._1)
 
       mostUpdated match {
         case fsList => Right(fsList)

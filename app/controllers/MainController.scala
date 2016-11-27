@@ -11,6 +11,7 @@ import io.circe.generic.auto._
 import io.circe.generic.semiauto._
 import io.circe.parser._
 import io.circe.syntax._
+import logic.FsGeneralLogic.mimeToExtension
 import logic.{FsReadLogic, FsWriteLogic}
 import models._
 import play.api.http.HttpEntity
@@ -40,14 +41,19 @@ class MainController extends Controller {
 
     //fixme check its its enabled... and also abstract out to list
     FsReadLogic.getMostUpdatedServers(key).flatMap {
-      case Right(fsList) =>
-        FutureUtil.first(fsList.map(_.getFile(key))).flatMap {
+      case Right(fsMetaList) =>
+        //because all the most recent versions should have the same meta
+        val meta = fsMetaList.head._2
+        val getFileList = fsMetaList.map(_._1.getFile(key))
+
+        FutureUtil.first(getFileList).flatMap {
           case (Success(res), _) =>
             Future(Result(
-              header = ResponseHeader(200, Map.empty),
-              body = HttpEntity.Streamed(res, None, Some("image/png"))
+              header = ResponseHeader(200, Map("Content-Disposition" -> ("attachment; filename=" + key + mimeToExtension(meta.mime)))),
+              body = HttpEntity.Streamed(res, None, Some(meta.mime))
             ))
-          case (Failure(e), res) => res.head.map(e => Ok.chunked(e))
+
+          case (Failure(err), res) => res.head.map(e => BadRequest(err.toString))
         }
       case Left(err) => Future(BadRequest(err))
     }
