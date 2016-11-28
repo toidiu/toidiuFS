@@ -69,15 +69,10 @@ object DbxService extends FileService {
   }
 
   override def getMeta(key: String): Future[String] = {
-    val stream = client.files().download(getPath(key)).getInputStream
-
+    val streamFut = client.files().download(getPath(key)).getInputStream
     val meta = Array.ofDim[Byte](FileService.bufferByte)
-    try {
-      stream.read(meta)
-    } finally {
-      stream.close()
-    }
-
+    streamFut.read(meta)
+    streamFut.close()
     Future(ByteString(meta.filterNot(_ == 0)).utf8String)
   }
 

@@ -9,7 +9,6 @@ import akka.util.ByteString
 import com.amazonaws.auth.BasicAWSCredentials
 import com.amazonaws.services.s3.model.{AmazonS3Exception, ObjectMetadata}
 import com.amazonaws.services.s3.{AmazonS3, AmazonS3Client}
-import com.dropbox.core.v2.files.DownloadErrorException
 import io.circe._
 import io.circe.generic.JsonCodec
 import io.circe.generic.auto._
