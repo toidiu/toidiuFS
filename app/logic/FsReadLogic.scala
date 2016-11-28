@@ -6,6 +6,7 @@ import io.circe.generic.auto._
 import io.circe.generic.semiauto._
 import io.circe.parser._
 import io.circe.syntax._
+import logic.FsResolutionLogic.attemptResolution
 import models.MetaServer
 import replicas.FileService
 import utils.AppUtils.ALL_SERVICES
@@ -19,7 +20,7 @@ import scala.concurrent.Future
   */
 object FsReadLogic {
 
-  def getMostUpdatedServers(key: String): Future[Either[String, (List[MetaServer], List[FileService])]] = {
+  def getMostUpdatedServers(key: String): Future[Either[String, (List[MetaServer], List[FileService], () => Future[List[Any]])]] = {
     //get meta for all servers
     val futList = ALL_SERVICES.map(_.getMeta(key))
     Future.sequence(futList).map { futMetaList =>
@@ -31,7 +32,10 @@ object FsReadLogic {
         .unzip
 
       mostUpdated match {
-        case metaFsList if metaFsList._1.nonEmpty => Right((metaFsList._2, metaFsList._1))
+        case metaFsList if metaFsList._1.nonEmpty =>
+          //attempt resolution
+          val attemptRes = attemptResolution(key, metaFsList._2.head, ALL_SERVICES.partition(f => metaFsList._1.contains(f)))
+          Right((metaFsList._2, metaFsList._1, attemptRes))
         case (Nil, Nil) => Left("No servers available to get file.")
 
       }

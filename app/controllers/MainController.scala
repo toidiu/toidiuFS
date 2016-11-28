@@ -41,19 +41,11 @@ class MainController extends Controller {
         val getFileList = fsMetaList._2.map(_.getFile(key))
 
         Future.sequence(getFileList)
-          .map { f => f.zip(metaList)
-            .filter(_._1.isRight)
-            .map(a => (a._1.right.get, a._2))
-          }.map {
-          case h :: t =>
-            Result(
-              //              header = ResponseHeader(200, Map("Content-Disposition" -> ("attachment; filename=" + key + mimeToExtension(meta.mime)))),
-              header = ResponseHeader(200, Map.empty),
-              body = HttpEntity.Streamed(h._1, None, Some(h._2.mime))
-            )
-          case Nil =>
-            BadRequest("Error reading from server")
-        }
+          .map { f => f.zip(metaList).filter(_._1.isRight).map(a => (a._1.right.get, a._2)) }
+          .map {
+            case h :: t => Result(ResponseHeader(200), HttpEntity.Streamed(h._1, Some(h._2.bytes), Some(h._2.mime)))
+            case Nil => BadRequest("Error reading from server")
+          }.andThen { case _ => fsMetaList._3.apply() }
       case Left(err) => Future(BadRequest(err))
     }
   }
@@ -78,10 +70,10 @@ class MainController extends Controller {
     val length = req.body.file.length()
 
     //check config restraints
-    FsWriteLogic.checkConfigRestraints(mime, length) match {
+    FsWriteLogic.checkFsConfigConstraints(mime, length) match {
       case Right(configList) =>
         //check for lock file/ availability
-        FsWriteLogic.checkAndAcquireLock(key, configList).flatMap {
+        FsWriteLogic.checkLockAndAcquireLock(key, configList).flatMap {
           case Right(lockList) =>
             //attempt upload of file
             val uploadTime: String = TimeUtils.zoneAsString

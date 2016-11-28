@@ -12,7 +12,7 @@ import scala.concurrent.Future
   */
 object FsWriteLogic {
 
-  def checkAndAcquireLock(key: String, list: List[FileService]): Future[Either[String, List[FileService]]] = {
+  def checkLockAndAcquireLock(key: String, list: List[FileService]): Future[Either[String, List[FileService]]] = {
     val futList = list.map(_.inspectOrCreateLock(key))
     Future.sequence(futList).map { lockList =>
       val availableFS = list.zip(lockList)
@@ -29,9 +29,9 @@ object FsWriteLogic {
     }
   }
 
-  def checkConfigRestraints(mime: String, length: Long): Either[String, List[FileService]] = {
+  def checkFsConfigConstraints(mime: String, length: Long): Either[String, List[FileService]] = {
     //-----check: length, mime, enabled
-    val retList = ALL_SERVICES.filter { s => length < s.maxLength && isMimeAllowed(mime, s.isWhiteList, s.mimeList)}
+    val retList = ALL_SERVICES.filter(isFsConfigValid(mime, length))
 
     //-----check: if we meet min replica
     retList match {
@@ -42,6 +42,10 @@ object FsWriteLogic {
       }
     }
   }
+
+  def isFsConfigValid(mime: String, length: Long): (FileService) => Boolean =
+    s => length < s.maxLength && isMimeAllowed(mime, s.isWhiteList, s.mimeList)
+
 
   def isMimeAllowed(mime: String, isWhiteList: Boolean, list: List[String]): Boolean =
     if (isWhiteList) list.contains(mime) else !list.contains(mime)
