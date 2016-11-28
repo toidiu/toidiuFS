@@ -7,11 +7,13 @@
     
 ## Usage
     
-    # post file banner.png to key 1
+    #1 post file banner.png to key 1
     curl -X POST -H "Content-Type: image/png" -H "Cache-Control: no-cache"  "http://localhost:9000/1" --upload-file banner.png
-    # get file from key 1 and save it to 1.png(assume its an image)
+
+    #2 get file from key 1 and save it to 1.png(assume its an image)
     curl -X GET -H "Cache-Control: no-cache" "http://localhost:9000/1" --output 1.png
-    # get meta data
+    
+    #3 get meta data
     curl -X GET -H "Cache-Control: no-cach" "http://localhost:9000/metadata/1"
 
 ## Design decisions: 
