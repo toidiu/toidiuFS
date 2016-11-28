@@ -37,6 +37,11 @@ object S3Service extends FileService {
 
   def getLockKey(key: String) = "lock/" + key
 
+  override val isEnable: Boolean = AppUtils.s3Enable
+  override val isWhiteList: Boolean = AppUtils.s3IsWhiteList
+  override val mimeList: List[String] = AppUtils.s3MimeList
+  override val maxLength: Long = AppUtils.s3MaxLength
+
   override def postFile(meta: ByteString, key: String, inputStream: InputStream): Future[Either[_, Boolean]] = {
     val metaObj: ObjectMetadata = new ObjectMetadata()
     val map: util.Map[String, String] = new util.HashMap()
@@ -57,9 +62,17 @@ object S3Service extends FileService {
   }
 
   override def getMeta(key: String): Future[String] = {
-    val op: Future[ObjectMetadata] = Future(client.getObjectMetadata(bucket.getName, key))
-    op.flatMap(e => Future(e.getUserMetaDataOf(META_OBJ_KEY)))
+      val op: Future[ObjectMetadata] = Future(client.getObjectMetadata(bucket.getName, key))
+      op.flatMap(e => Future(e.getUserMetaDataOf(META_OBJ_KEY)))
   }
+//  override def getMeta(key: String): Either[String, Future[String]] = {
+//    try {
+//      val op: Future[ObjectMetadata] = Future(client.getObjectMetadata(bucket.getName, key))
+//      Right(op.flatMap(e => Future(e.getUserMetaDataOf(META_OBJ_KEY))))
+//    } catch {
+//      case e: Exception => Left(e.toString)
+//    }
+//  }
 
   def buildS3Meta(meta: MetaServer): ByteString = ByteString(meta.asJson.noSpaces)
 

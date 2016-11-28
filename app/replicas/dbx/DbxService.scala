@@ -36,6 +36,11 @@ object DbxService extends FileService {
 
   def getLockPath(key: String): String = "/lock/" + key + ".lock"
 
+  override val isEnable: Boolean = AppUtils.dbxEnable
+  override val isWhiteList: Boolean = AppUtils.dbxIsWhiteList
+  override val mimeList: List[String] = AppUtils.dbxMimeList
+  override val maxLength: Long = AppUtils.dbxMaxLength
+
   override def postFile(meta: ByteString, key: String, inputStream: InputStream): Future[Either[_, Boolean]] = {
     val metaIs = Source.single(meta).runWith(StreamConverters.asInputStream(FiniteDuration(5, TimeUnit.SECONDS)))
     val saveIs = new java.io.SequenceInputStream(metaIs, inputStream)
@@ -69,12 +74,31 @@ object DbxService extends FileService {
   }
 
   override def getMeta(key: String): Future[String] = {
-    val streamFut = client.files().download(getPath(key)).getInputStream
-    val meta = Array.ofDim[Byte](FileService.bufferByte)
-    streamFut.read(meta)
-    streamFut.close()
-    Future(ByteString(meta.filterNot(_ == 0)).utf8String)
+      val streamFut = Future(client.files().download(getPath(key)).getInputStream)
+      val meta = Array.ofDim[Byte](FileService.bufferByte)
+        streamFut.map { is =>
+          is.read(meta)
+          is.close()
+          ByteString(meta.filterNot(_ == 0)).utf8String
+        }
   }
+
+  //
+//  override def getMeta(key: String): Either[String, Future[String]] = {
+//    try {
+//      val streamFut = Future(client.files().download(getPath(key)).getInputStream)
+//      val meta = Array.ofDim[Byte](FileService.bufferByte)
+//      Right {
+//        streamFut.map { is =>
+//          is.read(meta)
+//          is.close()
+//          ByteString(meta.filterNot(_ == 0)).utf8String
+//        }
+//      }
+//    } catch {
+//      case e: Exception => Left(e.toString)
+//    }
+//  }
 
   override def buildMetaBytes(bytes: Long, mime: String,
                               uploadedAt: String, key: String): ByteString = {

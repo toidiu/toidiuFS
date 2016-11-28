@@ -11,9 +11,10 @@ import replicas.FileService
 import replicas.dbx.DbxService
 import replicas.s3.S3Service
 import utils.AppUtils
+import utils.AppUtils.ALL_SERVICES
 import utils.TimeUtils.zoneFromString
-import scala.concurrent.ExecutionContext.Implicits.global
 
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
 /**
@@ -22,13 +23,12 @@ import scala.concurrent.Future
 object FsReadLogic {
 
   def getMostUpdatedServers(key: String): Future[Either[String, List[(FileService, MetaServer)]]] = {
-    val services: Seq[FileService] = Seq(DbxService, S3Service)
     //get meta for all servers
-    val futList = services.map(_.getMeta(key))
+    val futList = ALL_SERVICES.map(_.getMeta(key))
     Future.sequence(futList).map { futMetaList =>
       val metaList = futMetaList.map(m => decode[MetaServer](m))
       //filter most up-to-date
-      val mostUpdated = services.zip(metaList).view
+      val mostUpdated = ALL_SERVICES.zip(metaList).view
         .filter(_._2.isRight)
         .map(a => (a._1, a._2.right.get))
         .foldLeft(Nil: List[(FileService, MetaServer)])(filterMostUpdated)

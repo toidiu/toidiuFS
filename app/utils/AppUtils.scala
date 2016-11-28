@@ -1,6 +1,8 @@
 package utils
 
 import com.typesafe.config.ConfigFactory
+import replicas.dbx.DbxService
+import replicas.s3.S3Service
 
 import scala.collection.JavaConversions._
 
@@ -27,4 +29,6 @@ object AppUtils {
 
   val repMin: Int = conf.getInt("toidiufs.replication.min")
 
+
+  lazy val ALL_SERVICES = List(DbxService, S3Service)
 }

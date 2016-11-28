@@ -26,6 +26,12 @@ trait FileService {
   implicit val system = ActorSystem()
   implicit val materializer = ActorMaterializer()
 
+  val isEnable: Boolean
+  val isWhiteList: Boolean
+  val mimeList: List[String]
+  val maxLength: Long
+
+
   def postFile(meta: ByteString, key: String, inputStream: InputStream): Future[Either[_, Boolean]]
 
   def getFile(key: String): Future[Source[ByteString, _]]

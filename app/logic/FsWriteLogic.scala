@@ -1,8 +1,6 @@
 package logic
 
 import replicas.FileService
-import replicas.dbx.DbxService
-import replicas.s3.S3Service
 import utils.AppUtils
 import utils.AppUtils._
 
@@ -33,18 +31,11 @@ object FsWriteLogic {
 
   def checkConfigRestraints(mime: String, length: Long): Either[String, List[FileService]] = {
     //-----check: length, mime, enabled
-    val includeDbx =
-    if (length < dbxMaxLength && isMimeAllowed(mime, dbxIsWhiteList, dbxMimeList) && dbxEnable)
-      List(DbxService)
-    else Nil
-
-    val includeS3 =
-      if (length < s3MaxLength && isMimeAllowed(mime, s3IsWhiteList, s3MimeList) && s3Enable)
-        List(S3Service)
-      else Nil
+    val retList = ALL_SERVICES.filter { s =>
+      s.isEnable && length < s.maxLength && isMimeAllowed(mime, s.isWhiteList, s.mimeList)
+    }
 
     //-----check: if we meet min replica
-    val retList: List[FileService] = includeDbx ::: includeS3 ::: Nil
     retList match {
       case l if l.length >= repMin => Right(l)
       case l => {
