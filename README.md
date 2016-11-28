@@ -12,9 +12,13 @@
 
     #2 get file from key 1 and save it to 1.png(assume its an image)
     curl -X GET -H "Cache-Control: no-cache" "http://localhost:9000/1" --output 1.png
+    #or
+    http://localhost:9000/1 in your browser
     
     #3 get meta data
     curl -X GET -H "Cache-Control: no-cach" "http://localhost:9000/metadata/1"
+    #or
+    http://localhost:9000/metadata/1 in your browser
 
 ## Design decisions: 
 - The FS is designed to scale horizontally and be highly available
