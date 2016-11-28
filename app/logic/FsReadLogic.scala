@@ -43,11 +43,11 @@ object FsReadLogic {
   }
 
 
-  private def filterMostUpdated(list: List[(FileService, MetaServer)], nxt: (FileService, MetaServer)): List[(FileService, MetaServer)] = {
-    val elemTime = zoneFromString(nxt._2.uploadedAt)
+  private[logic] def filterMostUpdated(list: List[(FileService, MetaServer)], nxt: (FileService, MetaServer)): List[(FileService, MetaServer)] = {
+    val nxtTime = zoneFromString(nxt._2.uploadedAt)
     list match {
-      case h :: t if zoneFromString(h._2.uploadedAt).isAfter(elemTime) => list
-      case h :: t if zoneFromString(h._2.uploadedAt).isEqual(elemTime) => nxt :: list
+      case h :: t if zoneFromString(h._2.uploadedAt).isAfter(nxtTime) => list
+      case h :: t if zoneFromString(h._2.uploadedAt).isEqual(nxtTime) => nxt :: list
       case _ => List(nxt)
     }
   }

@@ -43,8 +43,9 @@ object FsWriteLogic {
     }
   }
 
-  def isFsConfigValid(mime: String, length: Long): (FileService) => Boolean =
-    s => length < s.maxLength && isMimeAllowed(mime, s.isWhiteList, s.mimeList)
+  def isFsConfigValid(mime: String, length: Long): (FileService) => Boolean = { fs =>
+    fs.isEnable && length < fs.maxLength && isMimeAllowed(mime, fs.isWhiteList, fs.mimeList)
+  }
 
 
   def isMimeAllowed(mime: String, isWhiteList: Boolean, list: List[String]): Boolean =

@@ -13,5 +13,8 @@ object TimeUtils {
 
   def zoneAsString = getZoneTimeNow.format(formatter)
 
+  def zoneAsString(time: ZonedDateTime) = time.format(formatter)
+
   def zoneFromString(string: String) = ZonedDateTime.parse(string, formatter)
 }
+
