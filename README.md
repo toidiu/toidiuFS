@@ -1,11 +1,11 @@
-# Congif
+## Config
 
 - make a copy of `conf/account_sample.conf` to `conf/account.conf`
 - fill in your s3 and dropbox info
 - change config settings (replication min, byte length, whitelist) in application.conf
 - start the server with `sbt run`
     
-# Usage
+## Usage
     
     # post file banner.png to key 1
     curl -X POST -H "Content-Type: image/png" -H "Cache-Control: no-cache"  "http://localhost:9000/1" --upload-file banner.png
