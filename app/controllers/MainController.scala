@@ -12,18 +12,16 @@ import io.circe.generic.semiauto._
 import io.circe.parser._
 import io.circe.syntax._
 import logic.{FsReadLogic, FsWriteLogic}
-import models._
 import play.api.http.HttpEntity
 import play.api.mvc.{Action, Controller, ResponseHeader, Result}
 import replicas.dbx.DbxService
 import replicas.s3.S3Service
-import utils.{AppUtils, FutureUtil, TimeUtils}
+import utils.{AppUtils, TimeUtils}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.language.postfixOps
-import scala.util.{Failure, Success}
 
 /**
   * Created by toidiu on 11/2/16.
@@ -39,34 +37,36 @@ class MainController extends Controller {
   def getFile(key: String) = Action.async { req =>
     FsReadLogic.getMostUpdatedServers(key).flatMap {
       case Right(fsMetaList) =>
-        val fsList = fsMetaList._2
-        val meta = fsMetaList._1
-        val getFileList = fsList.map(_.getFile(key))
+        val metaList = fsMetaList._1
+        val getFileList = fsMetaList._2.map(_.getFile(key))
 
-        FutureUtil.first(getFileList).flatMap {
-          case (Success(res), _) =>
-            Future(Result(
+        Future.sequence(getFileList)
+          .map { f => f.zip(metaList)
+            .filter(_._1.isRight)
+            .map(a => (a._1.right.get, a._2))
+          }.map {
+          case h :: t =>
+            Result(
               //              header = ResponseHeader(200, Map("Content-Disposition" -> ("attachment; filename=" + key + mimeToExtension(meta.mime)))),
               header = ResponseHeader(200, Map.empty),
-              body = HttpEntity.Streamed(res, None, Some(meta.mime))
-            ))
-
-          case (Failure(err), res) => res.head.map(e => BadRequest(err.toString))
+              body = HttpEntity.Streamed(h._1, None, Some(h._2.mime))
+            )
+          case Nil =>
+            BadRequest("Error reading from server")
         }
       case Left(err) => Future(BadRequest(err))
     }
   }
 
   def getMeta(key: String) = Action.async { req =>
-    val futDecodeList = AppUtils.ALL_SERVICES
-      .map(_.getMeta(key))
-      .map(futMeta => futMeta.map(meta => decode[MetaServer](meta)))
+    val futDecodeList = AppUtils.ALL_SERVICES.map(_.getMeta(key))
 
     val retList = Future.sequence(futDecodeList)
-      .map { decodeEither =>
-        decodeEither.filter(_.isRight)
-          .map(_.right.get)
-          .map(_.asJson)
+      .map { a =>
+        a.map {
+          case Right(r) => r.asJson
+          case Left(l) => l.asJson
+        }
       }
       .map(jsonList => Json.fromValues(jsonList).noSpaces)
 

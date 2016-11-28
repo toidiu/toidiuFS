@@ -19,21 +19,21 @@ import scala.concurrent.Future
   */
 object FsReadLogic {
 
-  def getMostUpdatedServers(key: String): Future[Either[String, (MetaServer, List[FileService])]] = {
+  def getMostUpdatedServers(key: String): Future[Either[String, (List[MetaServer], List[FileService])]] = {
     //get meta for all servers
     val futList = ALL_SERVICES.map(_.getMeta(key))
     Future.sequence(futList).map { futMetaList =>
-      val metaList = futMetaList.map(m => decode[MetaServer](m))
       //filter most up-to-date
-      val mostUpdated = ALL_SERVICES.zip(metaList).view
+      val mostUpdated = ALL_SERVICES.zip(futMetaList)
         .filter(_._2.isRight)
         .map(a => (a._1, a._2.right.get))
         .foldLeft(Nil: List[(FileService, MetaServer)])(filterMostUpdated)
         .unzip
 
       mostUpdated match {
-        case metaFsList if metaFsList._1.nonEmpty => Right((metaFsList._2.head, metaFsList._1))
+        case metaFsList if metaFsList._1.nonEmpty => Right((metaFsList._2, metaFsList._1))
         case (Nil, Nil) => Left("No servers available to get file.")
+
       }
     }
   }

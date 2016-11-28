@@ -12,7 +12,7 @@ import io.circe.generic.auto._
 import io.circe.generic.semiauto._
 import io.circe.parser._
 import io.circe.syntax._
-import models.FSLock
+import models.{FSLock, MetaError, MetaServer}
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
@@ -34,12 +34,12 @@ trait FileService {
 
   def postFile(meta: ByteString, key: String, inputStream: InputStream): Future[Either[_, Boolean]]
 
-  def getFile(key: String): Future[Source[ByteString, _]]
+  def getFile(key: String): Future[Either[String, Source[ByteString, _]]]
 
-  def getMeta(key: String): Future[String]
+  def getMeta(key: String): Future[Either[MetaError, MetaServer]]
 
   def buildMetaBytes(bytes: Long, mime: String, uploadedAt: String,
-                     key: String): ByteString //= ByteString(meta.asJson.noSpaces)
+                     key: String): ByteString
 
   //-=-=-=-=-=-=-=-==-==-==-==-=-=-=-=-=-=-
   //Lock
@@ -52,13 +52,5 @@ trait FileService {
 }
 
 object FileService {
-
   val bufferByte: Int = 1000
-
-  //  def buildS3Meta(meta: S3Meta): ByteString = ByteString(meta.asJson.noSpaces)
-  //
-  //  def buildDbxMeta(meta: DbxMeta): ByteString = {
-  //    val metaByteString = ByteString(meta.asJson.noSpaces)
-  //    metaByteString ++ ByteString.fromArray(new Array[Byte](FileService.bufferByte - metaByteString.size))
-  //  }
 }

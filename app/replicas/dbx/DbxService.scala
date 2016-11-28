@@ -15,7 +15,7 @@ import io.circe.generic.auto._
 import io.circe.generic.semiauto._
 import io.circe.parser._
 import io.circe.syntax._
-import models.{FSLock, MetaDetail, MetaServer}
+import models.{FSLock, MetaDetail, MetaError, MetaServer}
 import replicas.FileService
 import utils.{AppUtils, TimeUtils}
 
@@ -60,45 +60,44 @@ object DbxService extends FileService {
     fut.recover { case e: Exception => Left(e.toString) }
   }
 
-  override def getFile(key: String): Future[Source[ByteString, _]] = {
-    lazy val stream: () => InputStream = client.files().download(getPath(key)).getInputStream
-    var one = true
-
-    Future(StreamConverters.fromInputStream(stream).map { bs =>
-      if (one) {
-        one = false
-        bs.drop(FileService.bufferByte)
+  override def getFile(key: String): Future[Either[String, Source[ByteString, _]]] = {
+    Future {
+      try {
+        lazy val stream: () => InputStream = client.files().download(getPath(key)).getInputStream
+        var one = true
+        Right(StreamConverters.fromInputStream(stream).map { bs =>
+          if (one) {
+            one = false
+            bs.drop(FileService.bufferByte)
+          } else bs
+        })
+      } catch {
+        case e: Exception => Left(e.toString)
       }
-      else bs
-    })
+    }
   }
 
-  override def getMeta(key: String): Future[String] = {
-      val streamFut = Future(client.files().download(getPath(key)).getInputStream)
-      val meta = Array.ofDim[Byte](FileService.bufferByte)
-        streamFut.map { is =>
-          is.read(meta)
-          is.close()
-          ByteString(meta.filterNot(_ == 0)).utf8String
+  override def getMeta(key: String): Future[Either[MetaError, MetaServer]] = {
+    Future {
+      var stream: InputStream = null
+      try {
+        stream = client.files().download(getPath(key)).getInputStream
+        val meta = Array.ofDim[Byte](FileService.bufferByte)
+        stream.read(meta)
+        val str = ByteString(meta.filterNot(_ == 0)).utf8String
+        decode[MetaServer](str) match {
+          case Right(s) => Right(s)
+          case Left(e) => Left(MetaError("dropbox", e.toString))
         }
+      } catch {
+        case e: Exception => Left(MetaError("dropbox", e.toString))
+      }
+      finally {
+        if (stream != null)
+          stream.close()
+      }
+    }
   }
-
-  //
-//  override def getMeta(key: String): Either[String, Future[String]] = {
-//    try {
-//      val streamFut = Future(client.files().download(getPath(key)).getInputStream)
-//      val meta = Array.ofDim[Byte](FileService.bufferByte)
-//      Right {
-//        streamFut.map { is =>
-//          is.read(meta)
-//          is.close()
-//          ByteString(meta.filterNot(_ == 0)).utf8String
-//        }
-//      }
-//    } catch {
-//      case e: Exception => Left(e.toString)
-//    }
-//  }
 
   override def buildMetaBytes(bytes: Long, mime: String,
                               uploadedAt: String, key: String): ByteString = {
@@ -141,7 +140,9 @@ object DbxService extends FileService {
       s <- Future(lock)
     } yield Right(ret)
 
-    fut.recover { case e: Exception => Left(e.toString) }
+    fut.recover {
+      case e: Exception => Left(e.toString)
+    }
   }
 
   override def releaseLock(key: String): Future[Either[_, FSLock]] = {
@@ -160,7 +161,9 @@ object DbxService extends FileService {
       s <- Future(lock)
     } yield Right(ret)
 
-    fut.recover { case e: Exception => Left(e.toString) }
+    fut.recover {
+      case e: Exception => Left(e.toString)
+    }
   }
 
 }

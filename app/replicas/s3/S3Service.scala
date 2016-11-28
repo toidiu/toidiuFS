@@ -15,7 +15,7 @@ import io.circe.generic.auto._
 import io.circe.generic.semiauto._
 import io.circe.parser._
 import io.circe.syntax._
-import models.{FSLock, MetaDetail, MetaServer}
+import models.{FSLock, MetaDetail, MetaError, MetaServer}
 import org.apache.commons.io.IOUtils
 import replicas.FileService
 import utils.{AppUtils, TimeUtils}
@@ -56,23 +56,32 @@ object S3Service extends FileService {
     fut.recover { case e: Exception => Left(e.toString) }
   }
 
-  override def getFile(key: String): Future[Source[ByteString, _]] = {
-    val op = client.getObject(bucket.getName, key)
-    Future(StreamConverters.fromInputStream(op.getObjectContent))
+  override def getFile(key: String): Future[Either[String, Source[ByteString, _]]] = {
+    Future {
+      var stream: () => InputStream = null
+      try {
+        val op = client.getObject(bucket.getName, key)
+        stream = op.getObjectContent
+        Right(StreamConverters.fromInputStream(stream))
+      } catch {
+        case e: Exception => Left(e.toString)
+      }
+    }
   }
 
-  override def getMeta(key: String): Future[String] = {
-      val op: Future[ObjectMetadata] = Future(client.getObjectMetadata(bucket.getName, key))
-      op.flatMap(e => Future(e.getUserMetaDataOf(META_OBJ_KEY)))
+  override def getMeta(key: String): Future[Either[MetaError, MetaServer]] = {
+    Future {
+      try {
+        val str = client.getObjectMetadata(bucket.getName, key).getUserMetaDataOf(META_OBJ_KEY)
+        decode[MetaServer](str) match {
+          case Right(s) => Right(s)
+          case Left(e) => Left(MetaError("s3", e.toString))
+        }
+      } catch {
+        case e: Exception => Left(MetaError("s3", e.toString))
+      }
+    }
   }
-//  override def getMeta(key: String): Either[String, Future[String]] = {
-//    try {
-//      val op: Future[ObjectMetadata] = Future(client.getObjectMetadata(bucket.getName, key))
-//      Right(op.flatMap(e => Future(e.getUserMetaDataOf(META_OBJ_KEY))))
-//    } catch {
-//      case e: Exception => Left(e.toString)
-//    }
-//  }
 
   def buildS3Meta(meta: MetaServer): ByteString = ByteString(meta.asJson.noSpaces)
 
