@@ -11,14 +11,13 @@ import io.circe.generic.auto._
 import io.circe.generic.semiauto._
 import io.circe.parser._
 import io.circe.syntax._
-import logic.FsGeneralLogic.mimeToExtension
 import logic.{FsReadLogic, FsWriteLogic}
 import models._
 import play.api.http.HttpEntity
 import play.api.mvc.{Action, Controller, ResponseHeader, Result}
 import replicas.dbx.DbxService
 import replicas.s3.S3Service
-import utils.{FutureUtil, TimeUtils}
+import utils.{AppUtils, FutureUtil, TimeUtils}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -38,18 +37,16 @@ class MainController extends Controller {
   def index = Action.async(Future(Ok("Hi")))
 
   def getFile(key: String) = Action.async { req =>
-
-    //fixme check its its enabled... and also abstract out to list
     FsReadLogic.getMostUpdatedServers(key).flatMap {
       case Right(fsMetaList) =>
-        //because all the most recent versions should have the same meta
-        val meta = fsMetaList.head._2
-        val getFileList = fsMetaList.map(_._1.getFile(key))
+        val fsList = fsMetaList._2
+        val meta = fsMetaList._1
+        val getFileList = fsList.map(_.getFile(key))
 
         FutureUtil.first(getFileList).flatMap {
           case (Success(res), _) =>
             Future(Result(
-//              header = ResponseHeader(200, Map("Content-Disposition" -> ("attachment; filename=" + key + mimeToExtension(meta.mime)))),
+              //              header = ResponseHeader(200, Map("Content-Disposition" -> ("attachment; filename=" + key + mimeToExtension(meta.mime)))),
               header = ResponseHeader(200, Map.empty),
               body = HttpEntity.Streamed(res, None, Some(meta.mime))
             ))
@@ -61,22 +58,19 @@ class MainController extends Controller {
   }
 
   def getMeta(key: String) = Action.async { req =>
+    val futDecodeList = AppUtils.ALL_SERVICES
+      .map(_.getMeta(key))
+      .map(futMeta => futMeta.map(meta => decode[MetaServer](meta)))
 
-    //fixme check its its enabled... and also abstract out to list
-    val meta = for {
-      d <- DbxService.getMeta(key)
-      s <- S3Service.getMeta(key)
-    } yield (d, s)
+    val retList = Future.sequence(futDecodeList)
+      .map { decodeEither =>
+        decodeEither.filter(_.isRight)
+          .map(_.right.get)
+          .map(_.asJson)
+      }
+      .map(jsonList => Json.fromValues(jsonList).noSpaces)
 
-    meta.map(strTup => (decode[MetaServer](strTup._1), decode[MetaServer](strTup._2))).map {
-      case (Right(d), Right(s)) => Ok(Meta(d, s).asJson.spaces2)
-      case (Right(d), Left(s)) => Ok(Json.arr(d.asJson, MetaError("s3", s.getMessage).asJson).spaces2)
-      case (Left(d), Right(s)) => Ok(Json.arr(s.asJson, MetaError("dropbox", d.getMessage).asJson).spaces2)
-      case (Left(d), Left(s)) =>
-        val dJson = MetaError("dropbox", d.toString).asJson
-        val sJson = MetaError("s3", s.getMessage).asJson
-        BadRequest(Json.arr(dJson, sJson).spaces2)
-    }
+    retList.map(d => Ok(d))
   }
 
   def postFile(key: String) = Action.async(parse.temporaryFile) { req =>

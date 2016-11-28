@@ -30,5 +30,5 @@ object AppUtils {
   val repMin: Int = conf.getInt("toidiufs.replication.min")
 
 
-  lazy val ALL_SERVICES = List(DbxService, S3Service)
+  lazy val ALL_SERVICES = List(DbxService, S3Service).filter(_.isEnable)
 }

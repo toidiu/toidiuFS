@@ -31,9 +31,7 @@ object FsWriteLogic {
 
   def checkConfigRestraints(mime: String, length: Long): Either[String, List[FileService]] = {
     //-----check: length, mime, enabled
-    val retList = ALL_SERVICES.filter { s =>
-      s.isEnable && length < s.maxLength && isMimeAllowed(mime, s.isWhiteList, s.mimeList)
-    }
+    val retList = ALL_SERVICES.filter { s => length < s.maxLength && isMimeAllowed(mime, s.isWhiteList, s.mimeList)}
 
     //-----check: if we meet min replica
     retList match {

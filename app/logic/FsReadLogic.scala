@@ -8,9 +8,6 @@ import io.circe.parser._
 import io.circe.syntax._
 import models.MetaServer
 import replicas.FileService
-import replicas.dbx.DbxService
-import replicas.s3.S3Service
-import utils.AppUtils
 import utils.AppUtils.ALL_SERVICES
 import utils.TimeUtils.zoneFromString
 
@@ -22,7 +19,7 @@ import scala.concurrent.Future
   */
 object FsReadLogic {
 
-  def getMostUpdatedServers(key: String): Future[Either[String, List[(FileService, MetaServer)]]] = {
+  def getMostUpdatedServers(key: String): Future[Either[String, (MetaServer, List[FileService])]] = {
     //get meta for all servers
     val futList = ALL_SERVICES.map(_.getMeta(key))
     Future.sequence(futList).map { futMetaList =>
@@ -32,10 +29,11 @@ object FsReadLogic {
         .filter(_._2.isRight)
         .map(a => (a._1, a._2.right.get))
         .foldLeft(Nil: List[(FileService, MetaServer)])(filterMostUpdated)
+        .unzip
 
       mostUpdated match {
-        case fsList => Right(fsList)
-        case Nil => Left("No servers available to get file.")
+        case metaFsList if metaFsList._1.nonEmpty => Right((metaFsList._2.head, metaFsList._1))
+        case (Nil, Nil) => Left("No servers available to get file.")
       }
     }
   }
