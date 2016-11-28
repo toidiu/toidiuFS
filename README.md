@@ -20,6 +20,9 @@
     #or
     http://localhost:9000/metadata/1 in your browser
 
+## Internals
+Please do not tamper with .lock files within your file storage. They are located within the lock folder.
+
 ## Design decisions: 
 - The FS is designed to scale horizontally and be highly available
 - If there is less than the minimum # of services 'up', then everything fails.
