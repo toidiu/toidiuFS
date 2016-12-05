@@ -22,6 +22,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.language.postfixOps
+import scala.util.{Failure, Success}
 
 /**
   * Created by toidiu on 11/2/16.
@@ -70,10 +71,10 @@ class MainController extends Controller {
 
     //check config restraints
     FsWriteLogic.checkFsConfigConstraints(mime, length) match {
-      case Right(configList) =>
+      case Success(configList) =>
         //check for lock file/ availability
         FsWriteLogic.checkLockAndAcquireLock(key, configList).flatMap {
-          case Right(lockList) =>
+          case Success(lockList) =>
             //attempt upload of file
             val uploadTime: String = TimeUtils.zoneAsString
             val ret = for (i <- lockList) yield {
@@ -81,9 +82,9 @@ class MainController extends Controller {
               i.postFile(metaBytes, key, new FileInputStream(req.body.file))
             }
             Future.sequence(ret).map(d => Ok(d.toString()))
-          case Left(err) => Future(BadRequest(err))
+          case Failure(err) => Future(BadRequest(err.getMessage))
         }
-      case Left(err) => Future(BadRequest(err))
+      case Failure(err) => Future(BadRequest(err.getMessage))
     }
   }
 
