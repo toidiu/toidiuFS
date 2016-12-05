@@ -64,7 +64,7 @@ object FsReadLogic {
 
       mostUpdated match {
         case (fsList, metaList) if fsList.nonEmpty =>
-          val funcResolution = attemptResolution(key, metaList.head, ALL_SERVICES.partition(fs => fsList.contains(fs)))
+          val funcResolution = attemptResolution(key, metaList.head, fsList.head, ALL_SERVICES.filterNot(_.equals(fsList)))
           Success((metaList, fsList, funcResolution))
         case (Nil, Nil) => Failure(new FsReadException("No servers available to get file."))
       }

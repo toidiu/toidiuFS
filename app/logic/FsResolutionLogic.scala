@@ -28,15 +28,15 @@ object FsResolutionLogic {
 
   type Resolution = () => Future[List[Any]]
 
-  def attemptResolution(key: String, meta: MetaServer, updatedAndNeedRes: (List[FileService], List[FileService])): Resolution = () => {
+  def attemptResolution(key: String, meta: MetaServer, updated: FileService, needsRes: List[FileService]): Resolution = () => {
     val parCheckFsConfig = FsWriteLogic.isFsConfigValid(meta.mime, meta.bytes)
 
-    updatedAndNeedRes match {
-      case (hUp :: t, resList) if resList.nonEmpty =>
-        hUp.getFile(key).flatMap {
+    needsRes match {
+      case (resList) if resList.nonEmpty =>
+        updated.getFile(key).flatMap {
           case Success(source) =>
             val futList = resList.map(res => if (parCheckFsConfig(res)) {
-            val is = source.runWith(StreamConverters.asInputStream(FiniteDuration(5, TimeUnit.SECONDS)))
+              val is = source.runWith(StreamConverters.asInputStream(FiniteDuration(5, TimeUnit.SECONDS)))
               val metaBytes = res.buildMetaBytes(meta.bytes, meta.mime, TimeUtils.zoneAsString, key)
               res.postFile(metaBytes, key, is)
             } else Future(Nil))
