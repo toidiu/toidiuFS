@@ -12,7 +12,7 @@ import io.circe.generic.semiauto._
 import io.circe.parser._
 import io.circe.syntax._
 import logic.FsReadLogic
-import logic.FsWriteLogic.checkConfigAndLock
+import logic.FsWriteLogic.fsListCheckConfigAndLock
 import play.api.http.HttpEntity
 import play.api.mvc.{Action, Controller, ResponseHeader, Result}
 import replicas.dbx.DbxService
@@ -65,7 +65,7 @@ class MainController extends Controller {
     val mime = req.headers.get("Content-Type").getOrElse(throw new Exception("no mime type"))
     val length = req.body.file.length()
 
-    checkConfigAndLock(key, mime, length).flatMap {
+    fsListCheckConfigAndLock(key, mime, length).flatMap {
       case Success(lockList) =>
         //attempt upload of file
         val ret = for (fs <- lockList) yield {

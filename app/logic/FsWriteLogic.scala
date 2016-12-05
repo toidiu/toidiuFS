@@ -15,7 +15,7 @@ import scala.util.{Failure, Success, Try}
 object FsWriteLogic {
 
 
-  def checkConfigAndLock(key: String, mime: String, length: Long): Future[Try[List[FileService]]] = {
+  def fsListCheckConfigAndLock(key: String, mime: String, length: Long): Future[Try[List[FileService]]] = {
     for {
       confFSList <- Future(FsWriteLogic.checkFsConfigConstraints(mime, length))
       if confFSList.isSuccess
