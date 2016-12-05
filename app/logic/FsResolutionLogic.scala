@@ -2,8 +2,6 @@ package logic
 
 import java.util.concurrent.TimeUnit
 
-import akka.actor.ActorSystem
-import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.StreamConverters
 import akka.util.ByteString
 import io.circe._
@@ -24,9 +22,9 @@ import scala.util.{Failure, Success}
   * Created by toidiu on 11/27/16.
   */
 object FsResolutionLogic {
-  //  implicit val timeout = new Timeout(20 seconds)
-  implicit val system = ActorSystem()
-  implicit val materializer = ActorMaterializer()
+  implicit val t = FileService.timeout
+  implicit val s = FileService.system
+  implicit val m = FileService.materializer
 
   def attemptResolution(key: String, metaServer: MetaServer, updatedAndNeedRes: (List[FileService], List[FileService])): () => Future[List[Any]] = () => {
     val parCheckFsConfig = FsWriteLogic.isFsConfigValid(metaServer.mime, metaServer.bytes)

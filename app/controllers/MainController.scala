@@ -15,6 +15,7 @@ import logic.FsReadLogic
 import logic.FsWriteLogic.fsListCheckConfigAndLock
 import play.api.http.HttpEntity
 import play.api.mvc.{Action, Controller, ResponseHeader, Result}
+import replicas.FileService
 import replicas.dbx.DbxService
 import replicas.s3.S3Service
 import utils.TimeUtils
@@ -30,9 +31,9 @@ import scala.util.{Failure, Success}
   */
 
 class MainController extends Controller {
-  implicit val timeout = new Timeout(20 seconds)
-  implicit val system = ActorSystem()
-  implicit val materializer = ActorMaterializer()
+  implicit val t = FileService.timeout
+  implicit val s = FileService.system
+  implicit val m = FileService.materializer
 
   def index = Action.async(Future(Ok("Hi")))
 
