@@ -3,43 +3,54 @@ package logic
 import replicas.FileService
 import utils.AppUtils
 import utils.AppUtils._
+import utils.ErrorUtils.MinReplicaException
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
+import scala.util.{Failure, Success, Try}
 
 /**
   * Created by toidiu on 11/24/16.
   */
 object FsWriteLogic {
 
-  def checkLockAndAcquireLock(key: String, list: List[FileService]): Future[Either[String, List[FileService]]] = {
+
+  def fsListCheckConfigAndLock(key: String, mime: String, length: Long): Future[Try[List[FileService]]] = {
+    for {
+      confFSList <- Future(FsWriteLogic.checkFsConfigConstraints(mime, length))
+      if confFSList.isSuccess
+      lockFSList <- FsWriteLogic.checkLockAndAcquireLock(key, confFSList.get)
+    } yield lockFSList
+  }
+
+  def checkLockAndAcquireLock(key: String, list: List[FileService]): Future[Try[List[FileService]]] = {
     val futList = list.map(_.inspectOrCreateLock(key))
     Future.sequence(futList).map { lockList =>
       val availableFS = list.zip(lockList)
-        .filter(tup => tup._2.isRight && !tup._2.right.get.locked)
-        .map(_._1)
+        .withFilter { case (fs, Success(metaEither)) => !metaEither.locked }
+        .map { case (fs, metaEither) => fs }
       availableFS match {
         case fsList if fsList.length >= AppUtils.repMin =>
           //acquire lock
-          Right(fsList.map { fs => fs.acquireLock(key); fs })
+          Success(fsList.map { fs => fs.acquireLock(key); fs })
         case fsList =>
           fsList.map(_.releaseLock(key))
           val serversList = fsList.foldLeft("")((a, b) => a + b.getClass.getSimpleName)
-          Left("We don't meet the min replicas due to locks/availability. Available servers: " + serversList)
+          Failure(new MinReplicaException("We don't meet the min replicas due to locks/availability. Available servers: " + serversList))
       }
     }
   }
 
-  def checkFsConfigConstraints(mime: String, length: Long): Either[String, List[FileService]] = {
+  def checkFsConfigConstraints(mime: String, length: Long): Try[List[FileService]] = {
     //-----check: length, mime, enabled
     val retList = ALL_SERVICES.filter(isFsConfigValid(mime, length))
 
     //-----check: if we meet min replica
     retList match {
-      case l if l.length >= repMin => Right(l)
+      case l if l.length >= repMin => Success(l)
       case l => {
         val serversList = l.foldLeft("")((a, b) => a + b.getClass.getSimpleName)
-        Left("We don't meet the min replicas due to config restraints. Valid servers: " + serversList)
+        Failure(new MinReplicaException("We don't meet the min replicas due to config restraints. Valid servers: " + serversList))
       }
     }
   }

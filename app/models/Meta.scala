@@ -11,8 +11,6 @@ import io.circe.syntax._
   */
 case class Meta(copies: MetaServer*)
 
-case class MetaError(backend: String, error: String)
-
 case class MetaDetail(path: Option[String] = None, bucket: Option[String] = None, key: Option[String] = None)
 
 

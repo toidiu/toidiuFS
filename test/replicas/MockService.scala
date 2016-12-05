@@ -10,7 +10,8 @@ import io.circe.generic.auto._
 import io.circe.generic.semiauto._
 import io.circe.parser._
 import io.circe.syntax._
-import models.{FSLock, MetaError, MetaServer}
+import models.{FSLock, MetaServer}
+import utils.ErrorUtils.MetaError
 
 import scala.concurrent.Future
 

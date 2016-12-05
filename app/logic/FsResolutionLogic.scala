@@ -18,6 +18,7 @@ import replicas.FileService
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.concurrent.duration.FiniteDuration
+import scala.util.{Failure, Success}
 
 /**
   * Created by toidiu on 11/27/16.
@@ -33,7 +34,7 @@ object FsResolutionLogic {
     updatedAndNeedRes match {
       case (hUp :: t, res) if res.nonEmpty =>
         hUp.getFile(key).flatMap {
-          case Right(source) =>
+          case Success(source) =>
             val is = source.runWith(StreamConverters.asInputStream(FiniteDuration(5, TimeUnit.SECONDS)))
 
             val futList = res.map(resFs => parCheckFsConfig(resFs) match {
@@ -41,7 +42,7 @@ object FsResolutionLogic {
               case false => Future(Nil)
             })
             Future.sequence(futList)
-          case Left(err) => Future(Nil)
+          case Failure(err) => Future(Nil)
         }
       case _ => Future(Nil)
     }

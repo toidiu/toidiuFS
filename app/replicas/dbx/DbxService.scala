@@ -15,13 +15,16 @@ import io.circe.generic.auto._
 import io.circe.generic.semiauto._
 import io.circe.parser._
 import io.circe.syntax._
-import models.{FSLock, MetaDetail, MetaError, MetaServer}
+import models.{FSLock, MetaDetail, MetaServer}
 import replicas.FileService
+import utils.ErrorUtils.MetaError
+import utils.StatusUtils.PostFileStatus
 import utils.{AppUtils, TimeUtils}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.concurrent.duration.FiniteDuration
+import scala.util.{Failure, Success, Try}
 
 /**
   * Created by toidiu on 11/2/16.
@@ -41,7 +44,7 @@ object DbxService extends FileService {
   override val mimeList: List[String] = AppUtils.dbxMimeList
   override val maxLength: Long = AppUtils.dbxMaxLength
 
-  override def postFile(meta: ByteString, key: String, inputStream: InputStream): Future[Either[_, Boolean]] = {
+  override def postFile(meta: ByteString, key: String, inputStream: InputStream): Future[Try[PostFileStatus]] = {
     val metaIs = Source.single(meta).runWith(StreamConverters.asInputStream(FiniteDuration(5, TimeUnit.SECONDS)))
     val saveIs = new java.io.SequenceInputStream(metaIs, inputStream)
 
@@ -52,29 +55,25 @@ object DbxService extends FileService {
 
     saveIs.close()
 
-    val fut: Future[Either[_, Boolean]] = for {
+    val fut = for {
       s <- Future(metadata)
       l <- releaseLock(key)
-    } yield Right(true)
+    } yield Success(PostFileStatus("dropbox", success = true))
 
-    fut.recover { case e: Exception => Left(e.toString) }
+    fut.recover { case e: Exception => Failure(e) }
   }
 
-  override def getFile(key: String): Future[Either[String, Source[ByteString, _]]] = {
+  override def getFile(key: String): Future[Try[Source[ByteString, _]]] = {
     Future {
-      try {
-        lazy val stream: () => InputStream = client.files().download(getPath(key)).getInputStream
-        var one = true
-        Right(StreamConverters.fromInputStream(stream).map { bs =>
-          if (one) {
-            one = false
-            bs.drop(FileService.bufferByte)
-          } else bs
-        })
-      } catch {
-        case e: Exception => Left(e.toString)
-      }
-    }
+      lazy val stream: () => InputStream = client.files().download(getPath(key)).getInputStream
+      var one = true
+      Success(StreamConverters.fromInputStream(stream).map { bs =>
+        if (one) {
+          one = false
+          bs.drop(FileService.bufferByte)
+        } else bs
+      })
+    }.recover { case e: Exception => Failure(e) }
   }
 
   override def getMeta(key: String): Future[Either[MetaError, MetaServer]] = {
@@ -110,62 +109,45 @@ object DbxService extends FileService {
   //-=-=-=-=-=-=-=-==-==-==-==-=-=-=-=-=-=-
   //Lock
   //-=-=-=-=-=-=-=-==-==-==-==-=-=-=-=-=-=-
-  override def inspectOrCreateLock(key: String): Future[Either[_, FSLock]] = {
-    try {
+  override def createLock(key: String): Future[Try[FSLock]] = {
+    updateLock(key, FSLock(locked = false, TimeUtils.zoneAsString))
+  }
+
+  override def inspectOrCreateLock(key: String): Future[Try[FSLock]] = {
+    Future {
       val stream = client.files().download(getLockPath(key)).getInputStream
-      val lock = Array.ofDim[Byte](500)
+      val lock = Array.ofDim[Byte](largeLockArray)
       stream.read(lock)
       stream.close()
-      Future(decode[FSLock](ByteString(lock.filterNot(_ == 0)).utf8String))
-    } catch {
-      case e: DownloadErrorException =>
-        releaseLock(key).map(_ => Right(FSLock(false, TimeUtils.zoneAsString)))
-    }
-
+      val eitherJson = decode[FSLock](ByteString(lock.filterNot(_ == 0)).utf8String)
+      eitherJson match {
+        case Right(fsLock) => Success(fsLock)
+        case Left(err) => Failure(new Exception(err))
+      }
+    }.recoverWith { case e: DownloadErrorException => createLock(key) }
   }
 
-  override def acquireLock(key: String): Future[Either[_, FSLock]] = {
-    val ret: FSLock = FSLock(true, TimeUtils.zoneAsString)
+  override def acquireLock(key: String): Future[Try[FSLock]] = {
+    updateLock(key, FSLock(locked = true, TimeUtils.zoneAsString))
+  }
+
+  override def releaseLock(key: String): Future[Try[FSLock]] = {
+    updateLock(key, FSLock(locked = false, TimeUtils.zoneAsString))
+  }
+
+  private def updateLock(key: String, ret: FSLock) = {
     val lockContent = ByteString(ret.asJson.noSpaces)
     val lockIs = Source.single(lockContent).runWith(StreamConverters.asInputStream(FiniteDuration(5, TimeUnit.SECONDS)))
 
-    val lock = client.files().uploadBuilder(getLockPath(key))
-      .withMode(WriteMode.OVERWRITE)
-      .withClientModified(new Date(System.currentTimeMillis()))
-      .uploadAndFinish(lockIs)
-
-    lockIs.close()
-
-    val fut = for {
-      s <- Future(lock)
-    } yield Right(ret)
-
-    fut.recover {
-      case e: Exception => Left(e.toString)
-    }
+    Future {
+      client.files().uploadBuilder(getLockPath(key))
+        .withMode(WriteMode.OVERWRITE)
+        .withClientModified(new Date(System.currentTimeMillis()))
+        .uploadAndFinish(lockIs)
+      lockIs.close()
+      Success(ret)
+    }.recover { case e: Exception => Failure(e) }
   }
-
-  override def releaseLock(key: String): Future[Either[_, FSLock]] = {
-    val ret: FSLock = FSLock(false, TimeUtils.zoneAsString)
-    val lockContent = ByteString(ret.asJson.noSpaces)
-    val lockIs = Source.single(lockContent).runWith(StreamConverters.asInputStream(FiniteDuration(5, TimeUnit.SECONDS)))
-
-    val lock = client.files().uploadBuilder(getLockPath(key))
-      .withMode(WriteMode.OVERWRITE)
-      .withClientModified(new Date(System.currentTimeMillis()))
-      .uploadAndFinish(lockIs)
-
-    lockIs.close()
-
-    val fut = for {
-      s <- Future(lock)
-    } yield Right(ret)
-
-    fut.recover {
-      case e: Exception => Left(e.toString)
-    }
-  }
-
 }
 
 

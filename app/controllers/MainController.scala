@@ -4,24 +4,26 @@ import java.io.FileInputStream
 
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
-import akka.util.Timeout
+import akka.util.{ByteString, Timeout}
 import io.circe._
 import io.circe.generic.JsonCodec
 import io.circe.generic.auto._
 import io.circe.generic.semiauto._
 import io.circe.parser._
 import io.circe.syntax._
-import logic.{FsReadLogic, FsWriteLogic}
+import logic.FsReadLogic
+import logic.FsWriteLogic.fsListCheckConfigAndLock
 import play.api.http.HttpEntity
 import play.api.mvc.{Action, Controller, ResponseHeader, Result}
 import replicas.dbx.DbxService
 import replicas.s3.S3Service
-import utils.{AppUtils, TimeUtils}
+import utils.TimeUtils
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.language.postfixOps
+import scala.util.{Failure, Success}
 
 /**
   * Created by toidiu on 11/2/16.
@@ -36,13 +38,17 @@ class MainController extends Controller {
 
   def getFile(key: String) = Action.async { req =>
     FsReadLogic.getMostUpdatedServers(key).flatMap {
-      case Right((metaList, fsList , attemptResolution)) =>
+      case Right((metaList, fsList, attemptResolution)) =>
         val getFileList = fsList.map(_.getFile(key))
 
         Future.sequence(getFileList)
-          .map { f => f.zip(metaList).withFilter(_._1.isRight).map(a => (a._1.right.get, a._2)) }
+          .map { f =>
+            f.zip(metaList)
+              .withFilter(_._1.isSuccess)
+              .map(a => (a._1.get, a._2))
+          }
           .map {
-            case h :: t => Result(ResponseHeader(200), HttpEntity.Streamed(h._1, Some(h._2.bytes), Some(h._2.mime)))
+            case (byte, meta) :: t => Result(ResponseHeader(200), HttpEntity.Streamed(byte, Some(meta.bytes), Some(meta.mime)))
             case Nil => BadRequest("Error reading from server")
           }.andThen { case _ => attemptResolution.apply() }
       case Left(err) => Future(BadRequest(err))
@@ -50,40 +56,24 @@ class MainController extends Controller {
   }
 
   def getMeta(key: String) = Action.async { req =>
-    val futDecodeList = AppUtils.ALL_SERVICES.map(_.getMeta(key))
-
-    val retList = Future.sequence(futDecodeList)
-      .map { a =>
-        a.map {
-          case Right(r) => r.asJson
-          case Left(l) => l.asJson
-        }
-      }
-      .map(jsonList => Json.fromValues(jsonList).noSpaces)
-
-    retList.map(d => Ok(d))
+    FsReadLogic.getAllMetaList(key).map { json =>
+      Result(ResponseHeader(200), HttpEntity.Strict(ByteString(json.noSpaces), Some("application/json")))
+    }
   }
 
   def postFile(key: String) = Action.async(parse.temporaryFile) { req =>
     val mime = req.headers.get("Content-Type").getOrElse(throw new Exception("no mime type"))
     val length = req.body.file.length()
 
-    //check config restraints
-    FsWriteLogic.checkFsConfigConstraints(mime, length) match {
-      case Right(configList) =>
-        //check for lock file/ availability
-        FsWriteLogic.checkLockAndAcquireLock(key, configList).flatMap {
-          case Right(lockList) =>
-            //attempt upload of file
-            val uploadTime: String = TimeUtils.zoneAsString
-            val ret = for (i <- lockList) yield {
-              val metaBytes = i.buildMetaBytes(length, mime, uploadTime, key)
-              i.postFile(metaBytes, key, new FileInputStream(req.body.file))
-            }
-            Future.sequence(ret).map(d => Ok(d.toString()))
-          case Left(err) => Future(BadRequest(err))
+    fsListCheckConfigAndLock(key, mime, length).flatMap {
+      case Success(lockList) =>
+        //attempt upload of file
+        val ret = for (fs <- lockList) yield {
+          val metaBytes = fs.buildMetaBytes(length, mime, TimeUtils.zoneAsString, key)
+          fs.postFile(metaBytes, key, new FileInputStream(req.body.file))
         }
-      case Left(err) => Future(BadRequest(err))
+        Future.sequence(ret).map(resList => Ok(resList.toString()))
+      case Failure(err) => Future(BadRequest(err.getMessage))
     }
   }
 
