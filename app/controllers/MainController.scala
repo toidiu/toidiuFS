@@ -2,9 +2,7 @@ package controllers
 
 import java.io.FileInputStream
 
-import akka.actor.ActorSystem
-import akka.stream.ActorMaterializer
-import akka.util.{ByteString, Timeout}
+import akka.util.ByteString
 import io.circe._
 import io.circe.generic.JsonCodec
 import io.circe.generic.auto._
@@ -22,7 +20,6 @@ import utils.TimeUtils
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
-import scala.concurrent.duration._
 import scala.language.postfixOps
 import scala.util.{Failure, Success}
 
@@ -39,10 +36,8 @@ class MainController extends Controller {
 
   def getFile(key: String) = Action.async { req =>
     FsReadLogic.getMostUpdatedServers(key).flatMap {
-      case Right((metaList, fsList, attemptResolution)) =>
-        val getFileList = fsList.map(_.getFile(key))
-
-        Future.sequence(getFileList)
+      case Success((metaList, fsList, resolution)) =>
+        Future.sequence(fsList.map(_.getFile(key)))
           .map { f =>
             f.zip(metaList)
               .withFilter(_._1.isSuccess)
@@ -51,8 +46,8 @@ class MainController extends Controller {
           .map {
             case (byte, meta) :: t => Result(ResponseHeader(200), HttpEntity.Streamed(byte, Some(meta.bytes), Some(meta.mime)))
             case Nil => BadRequest("Error reading from server")
-          }.andThen { case _ => attemptResolution.apply() }
-      case Left(err) => Future(BadRequest(err))
+          }.andThen { case _ => resolution.apply() }
+      case Failure(err) => Future(BadRequest(err.toString))
     }
   }
 

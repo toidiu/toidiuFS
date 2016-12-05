@@ -3,7 +3,7 @@ package logic
 import replicas.FileService
 import utils.AppUtils
 import utils.AppUtils._
-import utils.ErrorUtils.MinReplicaException
+import utils.ErrorUtils.FsMinReplicaException
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -36,7 +36,7 @@ object FsWriteLogic {
         case fsList =>
           fsList.map(_.releaseLock(key))
           val serversList = fsList.foldLeft("")((a, b) => a + b.getClass.getSimpleName)
-          Failure(new MinReplicaException("We don't meet the min replicas due to locks/availability. Available servers: " + serversList))
+          Failure(new FsMinReplicaException("We don't meet the min replicas due to locks/availability. Available servers: " + serversList))
       }
     }
   }
@@ -50,7 +50,7 @@ object FsWriteLogic {
       case l if l.length >= repMin => Success(l)
       case l => {
         val serversList = l.foldLeft("")((a, b) => a + b.getClass.getSimpleName)
-        Failure(new MinReplicaException("We don't meet the min replicas due to config restraints. Valid servers: " + serversList))
+        Failure(new FsMinReplicaException("We don't meet the min replicas due to config restraints. Valid servers: " + serversList))
       }
     }
   }

@@ -6,15 +6,16 @@ import io.circe.generic.auto._
 import io.circe.generic.semiauto._
 import io.circe.parser._
 import io.circe.syntax._
-import logic.FsResolutionLogic.attemptResolution
+import logic.FsResolutionLogic.{Resolution, attemptResolution}
 import models.MetaServer
 import replicas.FileService
-import utils.AppUtils
 import utils.AppUtils.ALL_SERVICES
+import utils.ErrorUtils.FsReadException
 import utils.TimeUtils.zoneFromString
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
+import scala.util.{Failure, Success, Try}
 
 /**
   * Created by toidiu on 11/24/16.
@@ -22,34 +23,34 @@ import scala.concurrent.Future
 object FsReadLogic {
 
   def getAllMetaList(key: String): Future[Json] = {
-    val futDecodeList = AppUtils.ALL_SERVICES.map(_.getMeta(key))
-    Future.sequence(futDecodeList)
-      .map(metaList =>
-        metaList.map {
-          case Right(meta) => meta.asJson
-          case Left(metaError) => metaError.asJson
-        })
-      .map(jsonList => Json.fromValues(jsonList))
+    Future.sequence(ALL_SERVICES.map(_.getMeta(key))).map { metaList =>
+      val jsonList = for {
+        metaEither <- metaList
+        json <- List(if (metaEither.isRight) metaEither.right.get.asJson else metaEither.left.get.asJson)
+      } yield json
+
+      jsonList.asJson
+    }
   }
 
-  def getMostUpdatedServers(key: String): Future[Either[String, (List[MetaServer], List[FileService], () => Future[List[Any]])]] = {
+  def getMostUpdatedServers(key: String): Future[Try[(List[MetaServer], List[FileService], Resolution)]] = {
+    val zipFsMeta = Future.sequence(ALL_SERVICES.map(_.getMeta(key)))
+      .map(metaEither => ALL_SERVICES.zip(metaEither))
+
     //get meta for all servers
-    val futList = ALL_SERVICES.map(_.getMeta(key))
-    Future.sequence(futList).map { futMetaList =>
+    zipFsMeta.map { futTup =>
       //filter most up-to-date
-      val mostUpdated = ALL_SERVICES.zip(futMetaList)
-        .withFilter(_._2.isRight)
-        .map(a => (a._1, a._2.right.get))
+      val mostUpdated = futTup
+        .withFilter { case (fs, meta) => meta.isRight }
+        .map{  case (fs, meta) => (fs, meta.right.get)}
         .foldLeft(Nil: List[(FileService, MetaServer)])(filterMostUpdated)
         .unzip
 
       mostUpdated match {
         case (fsList, metaList) if fsList.nonEmpty =>
-          //attempt resolution
-          val attemptRes = attemptResolution(key, metaList.head, ALL_SERVICES.partition(f => fsList.contains(f)))
-          Right((metaList, fsList, attemptRes))
-        case (Nil, Nil) => Left("No servers available to get file.")
-
+          val funcResolution = attemptResolution(key, metaList.head, ALL_SERVICES.partition(f => fsList.contains(f)))
+          Success((metaList, fsList, funcResolution))
+        case (Nil, Nil) => Failure(new FsReadException("No servers available to get file."))
       }
     }
   }

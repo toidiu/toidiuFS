@@ -26,7 +26,9 @@ object FsResolutionLogic {
   implicit val s = FileService.system
   implicit val m = FileService.materializer
 
-  def attemptResolution(key: String, metaServer: MetaServer, updatedAndNeedRes: (List[FileService], List[FileService])): () => Future[List[Any]] = () => {
+  type Resolution = () => Future[List[Any]]
+
+  def attemptResolution(key: String, metaServer: MetaServer, updatedAndNeedRes: (List[FileService], List[FileService])): Resolution = () => {
     val parCheckFsConfig = FsWriteLogic.isFsConfigValid(metaServer.mime, metaServer.bytes)
 
     updatedAndNeedRes match {
