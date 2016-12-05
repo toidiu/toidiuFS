@@ -23,7 +23,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.language.postfixOps
-import scala.util.Success
+import scala.util.{Failure, Success}
 
 /**
   * Created by toidiu on 11/2/16.
@@ -65,13 +65,15 @@ class MainController extends Controller {
     val mime = req.headers.get("Content-Type").getOrElse(throw new Exception("no mime type"))
     val length = req.body.file.length()
 
-    checkConfigAndLock(key, mime, length).flatMap { case Success(lockList) =>
-      //attempt upload of file
-      val ret = for (fs <- lockList) yield {
-        val metaBytes = fs.buildMetaBytes(length, mime, TimeUtils.zoneAsString, key)
-        fs.postFile(metaBytes, key, new FileInputStream(req.body.file))
-      }
-      Future.sequence(ret).map(resList => Ok(resList.toString()))
+    checkConfigAndLock(key, mime, length).flatMap {
+      case Success(lockList) =>
+        //attempt upload of file
+        val ret = for (fs <- lockList) yield {
+          val metaBytes = fs.buildMetaBytes(length, mime, TimeUtils.zoneAsString, key)
+          fs.postFile(metaBytes, key, new FileInputStream(req.body.file))
+        }
+        Future.sequence(ret).map(resList => Ok(resList.toString()))
+      case Failure(err) => Future(BadRequest(err.getMessage))
     }
   }
 

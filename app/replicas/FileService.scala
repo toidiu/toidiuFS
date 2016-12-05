@@ -28,6 +28,8 @@ trait FileService {
   implicit val timeout = new Timeout(20 seconds)
   implicit val system = ActorSystem()
   implicit val materializer = ActorMaterializer()
+  val largeLockArray = 500
+
 
   val isEnable: Boolean
   val isWhiteList: Boolean
@@ -47,7 +49,9 @@ trait FileService {
   //-=-=-=-=-=-=-=-==-==-==-==-=-=-=-=-=-=-
   //Lock
   //-=-=-=-=-=-=-=-==-==-==-==-=-=-=-=-=-=-
-  def inspectOrCreateLock(key: String): Future[Either[_, FSLock]]
+//  def createLock(key: String): Future[Try[FSLock]]
+
+  def inspectOrCreateLock(key: String): Future[Try[FSLock]]
 
   def acquireLock(key: String): Future[Either[_, FSLock]]
 

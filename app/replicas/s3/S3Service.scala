@@ -94,19 +94,19 @@ object S3Service extends FileService {
   //-=-=-=-=-=-=-=-==-==-==-==-=-=-=-=-=-=-
   //Lock
   //-=-=-=-=-=-=-=-==-==-==-==-=-=-=-=-=-=-
-  override def inspectOrCreateLock(key: String): Future[Either[_, FSLock]] = {
-    try {
+  override def inspectOrCreateLock(key: String): Future[Try[FSLock]] = {
+    Future {
       val op = client.getObject(bucket.getName, getLockKey(key))
-      Future(op.getObjectContent).map { is =>
-        val writer: StringWriter = new StringWriter()
-        IOUtils.copy(is, writer, StandardCharsets.UTF_8)
-        decode[FSLock](writer.toString)
+      val writer: StringWriter = new StringWriter()
+      IOUtils.copy(op.getObjectContent, writer, StandardCharsets.UTF_8)
+      val eitherJson = decode[FSLock](writer.toString)
+      eitherJson match {
+        case Right(fsLock) => Success(fsLock)
+        case Left(err) => Failure(new Exception(err))
       }
-    } catch {
-      case e: AmazonS3Exception =>
-        releaseLock(key).map(_ => Right(FSLock(false, TimeUtils.zoneAsString)))
+    }.recoverWith { case e: AmazonS3Exception =>
+      releaseLock(key).map(_ => Success(FSLock(locked = false, TimeUtils.zoneAsString)))
     }
-
   }
 
   override def acquireLock(key: String): Future[Either[_, FSLock]] = {

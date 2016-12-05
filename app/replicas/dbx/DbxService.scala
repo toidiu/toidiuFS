@@ -109,18 +109,22 @@ object DbxService extends FileService {
   //-=-=-=-=-=-=-=-==-==-==-==-=-=-=-=-=-=-
   //Lock
   //-=-=-=-=-=-=-=-==-==-==-==-=-=-=-=-=-=-
-  override def inspectOrCreateLock(key: String): Future[Either[_, FSLock]] = {
-    try {
+  //  def createLock(key: String): Future[Try[FSLock]] = releaseLock(key)
+
+  override def inspectOrCreateLock(key: String): Future[Try[FSLock]] = {
+    Future {
       val stream = client.files().download(getLockPath(key)).getInputStream
-      val lock = Array.ofDim[Byte](500)
+      val lock = Array.ofDim[Byte](largeLockArray)
       stream.read(lock)
       stream.close()
-      Future(decode[FSLock](ByteString(lock.filterNot(_ == 0)).utf8String))
-    } catch {
-      case e: DownloadErrorException =>
-        releaseLock(key).map(_ => Right(FSLock(false, TimeUtils.zoneAsString)))
+      val eitherJson = decode[FSLock](ByteString(lock.filterNot(_ == 0)).utf8String)
+      eitherJson match {
+        case Right(fsLock) => Success(fsLock)
+        case Left(err) => Failure(new Exception(err))
+      }
+    }.recoverWith { case e: DownloadErrorException =>
+      releaseLock(key).map(_ => Success(FSLock(locked = false, TimeUtils.zoneAsString)))
     }
-
   }
 
   override def acquireLock(key: String): Future[Either[_, FSLock]] = {
