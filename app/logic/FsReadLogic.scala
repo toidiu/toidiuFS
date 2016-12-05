@@ -1,5 +1,7 @@
 package logic
 
+import akka.stream.scaladsl.Source
+import akka.util.ByteString
 import io.circe._
 import io.circe.generic.JsonCodec
 import io.circe.generic.auto._
@@ -33,6 +35,20 @@ object FsReadLogic {
     }
   }
 
+  def readFileFromServers(key: String): Future[Try[(Source[ByteString, _], MetaServer, Resolution)]] = {
+    getMostUpdatedServers(key).flatMap {
+      case Success((metaList, fsList, resolution)) =>
+        Future.sequence(fsList.map(_.getFile(key)))
+          .map { byteStream =>
+            byteStream.zip(metaList)
+              .withFilter { case (byte, meta) => byte.isSuccess }
+              .map { case (byte, meta) => Success(byte.get, meta, resolution) }
+              .head
+          }
+      case Failure(err) => Future(Failure(err))
+    }.recover { case e: Exception => Failure(e) }
+  }
+
   def getMostUpdatedServers(key: String): Future[Try[(List[MetaServer], List[FileService], Resolution)]] = {
     val zipFsMeta = Future.sequence(ALL_SERVICES.map(_.getMeta(key)))
       .map(metaEither => ALL_SERVICES.zip(metaEither))
@@ -42,7 +58,7 @@ object FsReadLogic {
       //filter most up-to-date
       val mostUpdated = futTup
         .withFilter { case (fs, meta) => meta.isRight }
-        .map{  case (fs, meta) => (fs, meta.right.get)}
+        .map { case (fs, meta) => (fs, meta.right.get) }
         .foldLeft(Nil: List[(FileService, MetaServer)])(filterMostUpdated)
         .unzip
 

@@ -35,18 +35,10 @@ class MainController extends Controller {
   def index = Action.async(Future(Ok("Hi")))
 
   def getFile(key: String) = Action.async { req =>
-    FsReadLogic.getMostUpdatedServers(key).flatMap {
-      case Success((metaList, fsList, resolution)) =>
-        Future.sequence(fsList.map(_.getFile(key)))
-          .map { f =>
-            f.zip(metaList)
-              .withFilter(_._1.isSuccess)
-              .map(a => (a._1.get, a._2))
-          }
-          .map {
-            case (byte, meta) :: t => Result(ResponseHeader(200), HttpEntity.Streamed(byte, Some(meta.bytes), Some(meta.mime)))
-            case Nil => BadRequest("Error reading from server")
-          }.andThen { case _ => resolution.apply() }
+    FsReadLogic.readFileFromServers(key).flatMap {
+      case Success((byte, meta, resolution)) =>
+        Future(Result(ResponseHeader(200), HttpEntity.Streamed(byte, Some(meta.bytes), Some(meta.mime))))
+          .andThen { case _ => resolution.apply() }
       case Failure(err) => Future(BadRequest(err.toString))
     }
   }
