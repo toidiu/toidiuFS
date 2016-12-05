@@ -36,16 +36,15 @@ class MainController extends Controller {
 
   def getFile(key: String) = Action.async { req =>
     FsReadLogic.getMostUpdatedServers(key).flatMap {
-      case Right(fsMetaList) =>
-        val metaList = fsMetaList._1
-        val getFileList = fsMetaList._2.map(_.getFile(key))
+      case Right((metaList, fsList , attemptResolution)) =>
+        val getFileList = fsList.map(_.getFile(key))
 
         Future.sequence(getFileList)
-          .map { f => f.zip(metaList).filter(_._1.isRight).map(a => (a._1.right.get, a._2)) }
+          .map { f => f.zip(metaList).withFilter(_._1.isRight).map(a => (a._1.right.get, a._2)) }
           .map {
             case h :: t => Result(ResponseHeader(200), HttpEntity.Streamed(h._1, Some(h._2.bytes), Some(h._2.mime)))
             case Nil => BadRequest("Error reading from server")
-          }.andThen { case _ => fsMetaList._3.apply() }
+          }.andThen { case _ => attemptResolution.apply() }
       case Left(err) => Future(BadRequest(err))
     }
   }

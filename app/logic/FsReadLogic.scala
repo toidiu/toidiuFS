@@ -26,16 +26,16 @@ object FsReadLogic {
     Future.sequence(futList).map { futMetaList =>
       //filter most up-to-date
       val mostUpdated = ALL_SERVICES.zip(futMetaList)
-        .filter(_._2.isRight)
+        .withFilter(_._2.isRight)
         .map(a => (a._1, a._2.right.get))
         .foldLeft(Nil: List[(FileService, MetaServer)])(filterMostUpdated)
         .unzip
 
       mostUpdated match {
-        case metaFsList if metaFsList._1.nonEmpty =>
+        case (fsList, metaList) if fsList.nonEmpty =>
           //attempt resolution
-          val attemptRes = attemptResolution(key, metaFsList._2.head, ALL_SERVICES.partition(f => metaFsList._1.contains(f)))
-          Right((metaFsList._2, metaFsList._1, attemptRes))
+          val attemptRes = attemptResolution(key, metaList.head, ALL_SERVICES.partition(f => fsList.contains(f)))
+          Right((metaList, fsList, attemptRes))
         case (Nil, Nil) => Left("No servers available to get file.")
 
       }
@@ -46,8 +46,8 @@ object FsReadLogic {
   private[logic] def filterMostUpdated(list: List[(FileService, MetaServer)], nxt: (FileService, MetaServer)): List[(FileService, MetaServer)] = {
     val nxtTime = zoneFromString(nxt._2.uploadedAt)
     list match {
-      case h :: t if zoneFromString(h._2.uploadedAt).isAfter(nxtTime) => list
-      case h :: t if zoneFromString(h._2.uploadedAt).isEqual(nxtTime) => nxt :: list
+      case (_, meta) :: t if zoneFromString(meta.uploadedAt).isAfter(nxtTime) => list
+      case (_, meta) :: t if zoneFromString(meta.uploadedAt).isEqual(nxtTime) => nxt :: list
       case _ => List(nxt)
     }
   }
