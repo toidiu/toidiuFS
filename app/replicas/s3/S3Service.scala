@@ -104,9 +104,7 @@ object S3Service extends FileService {
         case Right(fsLock) => Success(fsLock)
         case Left(err) => Failure(new Exception(err))
       }
-    }.recoverWith { case e: AmazonS3Exception =>
-      releaseLock(key).map(_ => Success(FSLock(locked = false, TimeUtils.zoneAsString)))
-    }
+    }.recoverWith { case e: AmazonS3Exception => releaseLock(key) }
   }
 
   override def acquireLock(key: String): Future[Either[_, FSLock]] = {

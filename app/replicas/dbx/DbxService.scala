@@ -122,9 +122,7 @@ object DbxService extends FileService {
         case Right(fsLock) => Success(fsLock)
         case Left(err) => Failure(new Exception(err))
       }
-    }.recoverWith { case e: DownloadErrorException =>
-      releaseLock(key).map(_ => Success(FSLock(locked = false, TimeUtils.zoneAsString)))
-    }
+    }.recoverWith { case e: DownloadErrorException => releaseLock(key) }
   }
 
   override def acquireLock(key: String): Future[Either[_, FSLock]] = {
@@ -160,7 +158,7 @@ object DbxService extends FileService {
         .uploadAndFinish(lockIs)
       lockIs.close()
       Success(ret)
-    }.recover { case e: Exception => Failure(e)}
+    }.recover { case e: Exception => Failure(e) }
   }
 
 }
