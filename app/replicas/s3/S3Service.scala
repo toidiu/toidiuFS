@@ -15,11 +15,11 @@ import io.circe.generic.auto._
 import io.circe.generic.semiauto._
 import io.circe.parser._
 import io.circe.syntax._
-import utils.StatusUtils.PostFileStatus
 import models.{FSLock, MetaDetail, MetaServer}
 import org.apache.commons.io.IOUtils
 import replicas.FileService
 import utils.ErrorUtils.MetaError
+import utils.StatusUtils.PostFileStatus
 import utils.{AppUtils, TimeUtils}
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -54,22 +54,18 @@ object S3Service extends FileService {
     val fut = for {
       s <- Future(client.putObject(bucket.getName, key, inputStream, metaObj))
       l <- releaseLock(key)
-    } yield Success(PostFileStatus("s3", true))
+    } yield Success(PostFileStatus("s3", success = true))
 
     fut.recover { case e: Exception => Failure(e) }
   }
 
-  override def getFile(key: String): Future[Either[String, Source[ByteString, _]]] = {
+  override def getFile(key: String): Future[Try[Source[ByteString, _]]] = {
     Future {
       var stream: () => InputStream = null
-      try {
-        val op = client.getObject(bucket.getName, key)
-        stream = op.getObjectContent
-        Right(StreamConverters.fromInputStream(stream))
-      } catch {
-        case e: Exception => Left(e.toString)
-      }
-    }
+      val op = client.getObject(bucket.getName, key)
+      stream = op.getObjectContent
+      Success(StreamConverters.fromInputStream(stream))
+    }.recover { case e: Exception => Failure(e) }
   }
 
   override def getMeta(key: String): Future[Either[MetaError, MetaServer]] = {

@@ -37,7 +37,7 @@ trait FileService {
 
   def postFile(meta: ByteString, key: String, inputStream: InputStream): Future[Try[PostFileStatus]]
 
-  def getFile(key: String): Future[Either[String, Source[ByteString, _]]]
+  def getFile(key: String): Future[Try[Source[ByteString, _]]]
 
   def getMeta(key: String): Future[Either[MetaError, MetaServer]]
 

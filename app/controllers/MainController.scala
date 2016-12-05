@@ -44,8 +44,8 @@ class MainController extends Controller {
         Future.sequence(getFileList)
           .map { f =>
             f.zip(metaList)
-              .withFilter(_._1.isRight)
-              .map(a => (a._1.right.get, a._2))
+              .withFilter(_._1.isSuccess)
+              .map(a => (a._1.get, a._2))
           }
           .map {
             case (byte, meta) :: t => Result(ResponseHeader(200), HttpEntity.Streamed(byte, Some(meta.bytes), Some(meta.mime)))

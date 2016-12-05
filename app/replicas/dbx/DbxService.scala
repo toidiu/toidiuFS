@@ -15,10 +15,10 @@ import io.circe.generic.auto._
 import io.circe.generic.semiauto._
 import io.circe.parser._
 import io.circe.syntax._
-import utils.StatusUtils.PostFileStatus
 import models.{FSLock, MetaDetail, MetaServer}
 import replicas.FileService
 import utils.ErrorUtils.MetaError
+import utils.StatusUtils.PostFileStatus
 import utils.{AppUtils, TimeUtils}
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -63,21 +63,17 @@ object DbxService extends FileService {
     fut.recover { case e: Exception => Failure(e) }
   }
 
-  override def getFile(key: String): Future[Either[String, Source[ByteString, _]]] = {
+  override def getFile(key: String): Future[Try[Source[ByteString, _]]] = {
     Future {
-      try {
-        lazy val stream: () => InputStream = client.files().download(getPath(key)).getInputStream
-        var one = true
-        Right(StreamConverters.fromInputStream(stream).map { bs =>
-          if (one) {
-            one = false
-            bs.drop(FileService.bufferByte)
-          } else bs
-        })
-      } catch {
-        case e: Exception => Left(e.toString)
-      }
-    }
+      lazy val stream: () => InputStream = client.files().download(getPath(key)).getInputStream
+      var one = true
+      Success(StreamConverters.fromInputStream(stream).map { bs =>
+        if (one) {
+          one = false
+          bs.drop(FileService.bufferByte)
+        } else bs
+      })
+    }.recover { case e: Exception => Failure(e) }
   }
 
   override def getMeta(key: String): Future[Either[MetaError, MetaServer]] = {
