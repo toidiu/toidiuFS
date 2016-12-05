@@ -48,7 +48,7 @@ class MainController extends Controller {
               .map(a => (a._1.right.get, a._2))
           }
           .map {
-            case h :: t => Result(ResponseHeader(200), HttpEntity.Streamed(h._1, Some(h._2.bytes), Some(h._2.mime)))
+            case (byte, meta) :: t => Result(ResponseHeader(200), HttpEntity.Streamed(byte, Some(meta.bytes), Some(meta.mime)))
             case Nil => BadRequest("Error reading from server")
           }.andThen { case _ => attemptResolution.apply() }
       case Left(err) => Future(BadRequest(err))
@@ -59,10 +59,10 @@ class MainController extends Controller {
     val futDecodeList = AppUtils.ALL_SERVICES.map(_.getMeta(key))
 
     val retList = Future.sequence(futDecodeList)
-      .map { a =>
-        a.map {
-          case Right(r) => r.asJson
-          case Left(l) => l.asJson
+      .map { metaObj =>
+        metaObj.map {
+          case Right(meta) => meta.asJson
+          case Left(metaError) => metaError.asJson
         }
       }
       .map(jsonList => Json.fromValues(jsonList).noSpaces)
