@@ -11,6 +11,7 @@ import io.circe.generic.auto._
 import io.circe.generic.semiauto._
 import io.circe.parser._
 import io.circe.syntax._
+import logic.FsWriteLogic.checkConfigAndLock
 import logic.{FsReadLogic, FsWriteLogic}
 import play.api.http.HttpEntity
 import play.api.mvc.{Action, Controller, ResponseHeader, Result}
@@ -37,7 +38,7 @@ class MainController extends Controller {
 
   def getFile(key: String) = Action.async { req =>
     FsReadLogic.getMostUpdatedServers(key).flatMap {
-      case Right((metaList, fsList , attemptResolution)) =>
+      case Right((metaList, fsList, attemptResolution)) =>
         val getFileList = fsList.map(_.getFile(key))
 
         Future.sequence(getFileList)
@@ -69,22 +70,14 @@ class MainController extends Controller {
     val mime = req.headers.get("Content-Type").getOrElse(throw new Exception("no mime type"))
     val length = req.body.file.length()
 
-    //check config restraints
-    FsWriteLogic.checkFsConfigConstraints(mime, length) match {
-      case Success(configList) =>
-        //check for lock file/ availability
-        FsWriteLogic.checkLockAndAcquireLock(key, configList).flatMap {
-          case Success(lockList) =>
-            //attempt upload of file
-            val uploadTime: String = TimeUtils.zoneAsString
-            val ret = for (i <- lockList) yield {
-              val metaBytes = i.buildMetaBytes(length, mime, uploadTime, key)
-              i.postFile(metaBytes, key, new FileInputStream(req.body.file))
-            }
-            Future.sequence(ret).map(d => Ok(d.toString()))
-          case Failure(err) => Future(BadRequest(err.getMessage))
-        }
-      case Failure(err) => Future(BadRequest(err.getMessage))
+    checkConfigAndLock(key, mime, length).flatMap{ case Success(lockList ) =>
+      //attempt upload of file
+      val uploadTime: String = TimeUtils.zoneAsString
+      val ret = for (fs <- lockList) yield {
+        val metaBytes = fs.buildMetaBytes(length, mime, uploadTime, key)
+        fs.postFile(metaBytes, key, new FileInputStream(req.body.file))
+      }
+      Future.sequence(ret).map(d => Ok(d.toString()))
     }
   }
 
