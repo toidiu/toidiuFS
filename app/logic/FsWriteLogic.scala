@@ -23,6 +23,7 @@ object FsWriteLogic {
           //acquire lock
           Right(fsList.map { fs => fs.acquireLock(key); fs })
         case fsList =>
+          fsList.map(_.releaseLock(key))
           val serversList = fsList.foldLeft("")((a, b) => a + b.getClass.getSimpleName)
           Left("We don't meet the min replicas due to locks/availability. Available servers: " + serversList)
       }
