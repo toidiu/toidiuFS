@@ -25,11 +25,10 @@ import scala.util.Try
   * Created by toidiu on 11/2/16.
   */
 trait FileService {
-  implicit val timeout = new Timeout(20 seconds)
-  implicit val system = ActorSystem()
-  implicit val materializer = ActorMaterializer()
+  implicit val t = FileService.timeout
+  implicit val s = FileService.system
+  implicit val m = FileService.materializer
   val largeLockArray = 500
-
 
   val isEnable: Boolean
   val isWhiteList: Boolean
@@ -59,5 +58,8 @@ trait FileService {
 }
 
 object FileService {
+  implicit val timeout = new Timeout(20 seconds)
+  implicit val system = ActorSystem()
+  implicit val materializer = ActorMaterializer()
   val bufferByte: Int = 1000
 }
