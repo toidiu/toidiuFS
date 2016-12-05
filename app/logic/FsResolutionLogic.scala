@@ -3,7 +3,6 @@ package logic
 import java.util.concurrent.TimeUnit
 
 import akka.stream.scaladsl.StreamConverters
-import akka.util.ByteString
 import io.circe._
 import io.circe.generic.JsonCodec
 import io.circe.generic.auto._
@@ -12,6 +11,7 @@ import io.circe.parser._
 import io.circe.syntax._
 import models.MetaServer
 import replicas.FileService
+import utils.TimeUtils
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -28,8 +28,8 @@ object FsResolutionLogic {
 
   type Resolution = () => Future[List[Any]]
 
-  def attemptResolution(key: String, metaServer: MetaServer, updatedAndNeedRes: (List[FileService], List[FileService])): Resolution = () => {
-    val parCheckFsConfig = FsWriteLogic.isFsConfigValid(metaServer.mime, metaServer.bytes)
+  def attemptResolution(key: String, meta: MetaServer, updatedAndNeedRes: (List[FileService], List[FileService])): Resolution = () => {
+    val parCheckFsConfig = FsWriteLogic.isFsConfigValid(meta.mime, meta.bytes)
 
     updatedAndNeedRes match {
       case (hUp :: t, res) if res.nonEmpty =>
@@ -37,10 +37,10 @@ object FsResolutionLogic {
           case Success(source) =>
             val is = source.runWith(StreamConverters.asInputStream(FiniteDuration(5, TimeUnit.SECONDS)))
 
-            val futList = res.map(resFs => parCheckFsConfig(resFs) match {
-              case true => resFs.postFile(ByteString(metaServer.asJson.noSpaces), key, is)
-              case false => Future(Nil)
-            })
+            val futList = res.map(needsRes => if (parCheckFsConfig(needsRes)) {
+              val metaBytes = needsRes.buildMetaBytes(meta.bytes, meta.mime, TimeUtils.zoneAsString, key)
+              needsRes.postFile(metaBytes, key, is)
+            } else Future(Nil))
             Future.sequence(futList)
           case Failure(err) => Future(Nil)
         }
