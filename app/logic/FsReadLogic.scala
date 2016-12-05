@@ -24,12 +24,11 @@ object FsReadLogic {
   def getAllMetaList(key: String): Future[Json] = {
     val futDecodeList = AppUtils.ALL_SERVICES.map(_.getMeta(key))
     Future.sequence(futDecodeList)
-      .map { metaObj =>
-        metaObj.map {
+      .map(metaList =>
+        metaList.map {
           case Right(meta) => meta.asJson
           case Left(metaError) => metaError.asJson
-        }
-      }
+        })
       .map(jsonList => Json.fromValues(jsonList))
   }
 

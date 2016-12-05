@@ -67,9 +67,8 @@ class MainController extends Controller {
 
     checkConfigAndLock(key, mime, length).flatMap { case Success(lockList) =>
       //attempt upload of file
-      val uploadTime: String = TimeUtils.zoneAsString
       val ret = for (fs <- lockList) yield {
-        val metaBytes = fs.buildMetaBytes(length, mime, uploadTime, key)
+        val metaBytes = fs.buildMetaBytes(length, mime, TimeUtils.zoneAsString, key)
         fs.postFile(metaBytes, key, new FileInputStream(req.body.file))
       }
       Future.sequence(ret).map(resList => Ok(resList.toString()))
