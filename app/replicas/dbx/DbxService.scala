@@ -109,7 +109,7 @@ object DbxService extends FileService {
   //-=-=-=-=-=-=-=-==-==-==-==-=-=-=-=-=-=-
   //Lock
   //-=-=-=-=-=-=-=-==-==-==-==-=-=-=-=-=-=-
-  //  def createLock(key: String): Future[Try[FSLock]] = releaseLock(key)
+  override def createLock(key: String): Future[Try[FSLock]] = releaseLock(key)
 
   override def inspectOrCreateLock(key: String): Future[Try[FSLock]] = {
     Future {
@@ -122,7 +122,7 @@ object DbxService extends FileService {
         case Right(fsLock) => Success(fsLock)
         case Left(err) => Failure(new Exception(err))
       }
-    }.recoverWith { case e: DownloadErrorException => releaseLock(key) }
+    }.recoverWith { case e: DownloadErrorException => createLock(key) }
   }
 
   override def acquireLock(key: String): Future[Either[_, FSLock]] = {

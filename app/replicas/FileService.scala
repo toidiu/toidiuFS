@@ -49,7 +49,7 @@ trait FileService {
   //-=-=-=-=-=-=-=-==-==-==-==-=-=-=-=-=-=-
   //Lock
   //-=-=-=-=-=-=-=-==-==-==-==-=-=-=-=-=-=-
-//  def createLock(key: String): Future[Try[FSLock]]
+  def createLock(key: String): Future[Try[FSLock]]
 
   def inspectOrCreateLock(key: String): Future[Try[FSLock]]
 

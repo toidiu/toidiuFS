@@ -94,6 +94,8 @@ object S3Service extends FileService {
   //-=-=-=-=-=-=-=-==-==-==-==-=-=-=-=-=-=-
   //Lock
   //-=-=-=-=-=-=-=-==-==-==-==-=-=-=-=-=-=-
+  override def createLock(key: String): Future[Try[FSLock]] = releaseLock(key)
+
   override def inspectOrCreateLock(key: String): Future[Try[FSLock]] = {
     Future {
       val op = client.getObject(bucket.getName, getLockKey(key))
@@ -104,7 +106,7 @@ object S3Service extends FileService {
         case Right(fsLock) => Success(fsLock)
         case Left(err) => Failure(new Exception(err))
       }
-    }.recoverWith { case e: AmazonS3Exception => releaseLock(key) }
+    }.recoverWith { case e: AmazonS3Exception => createLock(key) }
   }
 
   override def acquireLock(key: String): Future[Either[_, FSLock]] = {
