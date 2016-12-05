@@ -9,6 +9,7 @@ import io.circe.syntax._
 import logic.FsResolutionLogic.attemptResolution
 import models.MetaServer
 import replicas.FileService
+import utils.AppUtils
 import utils.AppUtils.ALL_SERVICES
 import utils.TimeUtils.zoneFromString
 
@@ -19,6 +20,18 @@ import scala.concurrent.Future
   * Created by toidiu on 11/24/16.
   */
 object FsReadLogic {
+
+  def getAllMetaList(key: String): Future[Json] = {
+    val futDecodeList = AppUtils.ALL_SERVICES.map(_.getMeta(key))
+    Future.sequence(futDecodeList)
+      .map { metaObj =>
+        metaObj.map {
+          case Right(meta) => meta.asJson
+          case Left(metaError) => metaError.asJson
+        }
+      }
+      .map(jsonList => Json.fromValues(jsonList))
+  }
 
   def getMostUpdatedServers(key: String): Future[Either[String, (List[MetaServer], List[FileService], () => Future[List[Any]])]] = {
     //get meta for all servers

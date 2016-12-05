@@ -4,7 +4,7 @@ import java.io.FileInputStream
 
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
-import akka.util.Timeout
+import akka.util.{ByteString, Timeout}
 import io.circe._
 import io.circe.generic.JsonCodec
 import io.circe.generic.auto._
@@ -17,7 +17,7 @@ import play.api.http.HttpEntity
 import play.api.mvc.{Action, Controller, ResponseHeader, Result}
 import replicas.dbx.DbxService
 import replicas.s3.S3Service
-import utils.{AppUtils, TimeUtils}
+import utils.TimeUtils
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -56,18 +56,9 @@ class MainController extends Controller {
   }
 
   def getMeta(key: String) = Action.async { req =>
-    val futDecodeList = AppUtils.ALL_SERVICES.map(_.getMeta(key))
-
-    val retList = Future.sequence(futDecodeList)
-      .map { metaObj =>
-        metaObj.map {
-          case Right(meta) => meta.asJson
-          case Left(metaError) => metaError.asJson
-        }
-      }
-      .map(jsonList => Json.fromValues(jsonList).noSpaces)
-
-    retList.map(d => Ok(d))
+    FsReadLogic.getAllMetaList(key).map { json =>
+      Result(ResponseHeader(200), HttpEntity.Strict(ByteString(json.noSpaces), Some("application/json")))
+    }
   }
 
   def postFile(key: String) = Action.async(parse.temporaryFile) { req =>
