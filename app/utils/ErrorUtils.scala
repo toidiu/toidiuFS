@@ -7,4 +7,6 @@ object ErrorUtils {
 
   final class MinReplicaException(msg:String) extends Exception(msg)
 
+  case class MetaError(backend: String, error: String)
+
 }

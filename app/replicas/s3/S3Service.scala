@@ -15,10 +15,11 @@ import io.circe.generic.auto._
 import io.circe.generic.semiauto._
 import io.circe.parser._
 import io.circe.syntax._
-import models.Status.PostFileStatus
-import models.{FSLock, MetaDetail, MetaError, MetaServer}
+import utils.StatusUtils.PostFileStatus
+import models.{FSLock, MetaDetail, MetaServer}
 import org.apache.commons.io.IOUtils
 import replicas.FileService
+import utils.ErrorUtils.MetaError
 import utils.{AppUtils, TimeUtils}
 
 import scala.concurrent.ExecutionContext.Implicits.global

@@ -12,8 +12,9 @@ import io.circe.generic.auto._
 import io.circe.generic.semiauto._
 import io.circe.parser._
 import io.circe.syntax._
-import models.Status.PostFileStatus
-import models.{FSLock, MetaError, MetaServer}
+import utils.StatusUtils.PostFileStatus
+import models.{FSLock, MetaServer}
+import utils.ErrorUtils.MetaError
 
 import scala.concurrent.Future
 import scala.concurrent.duration._

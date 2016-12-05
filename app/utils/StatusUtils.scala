@@ -1,9 +1,9 @@
-package models
+package utils
 
 /**
   * Created by toidiu on 12/4/16.
   */
-object Status {
+object StatusUtils {
 
   case class PostFileStatus(backend: String, success: Boolean)
 
