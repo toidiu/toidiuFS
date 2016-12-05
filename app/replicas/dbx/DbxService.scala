@@ -128,7 +128,7 @@ object DbxService extends FileService {
   }
 
   override def acquireLock(key: String): Future[Either[_, FSLock]] = {
-    val ret: FSLock = FSLock(true, TimeUtils.zoneAsString)
+    val ret: FSLock = FSLock(locked = true, TimeUtils.zoneAsString)
     val lockContent = ByteString(ret.asJson.noSpaces)
     val lockIs = Source.single(lockContent).runWith(StreamConverters.asInputStream(FiniteDuration(5, TimeUnit.SECONDS)))
 
@@ -148,25 +148,19 @@ object DbxService extends FileService {
     }
   }
 
-  override def releaseLock(key: String): Future[Either[_, FSLock]] = {
-    val ret: FSLock = FSLock(false, TimeUtils.zoneAsString)
+  override def releaseLock(key: String): Future[Try[FSLock]] = {
+    val ret: FSLock = FSLock(locked = false, TimeUtils.zoneAsString)
     val lockContent = ByteString(ret.asJson.noSpaces)
     val lockIs = Source.single(lockContent).runWith(StreamConverters.asInputStream(FiniteDuration(5, TimeUnit.SECONDS)))
 
-    val lock = client.files().uploadBuilder(getLockPath(key))
-      .withMode(WriteMode.OVERWRITE)
-      .withClientModified(new Date(System.currentTimeMillis()))
-      .uploadAndFinish(lockIs)
-
-    lockIs.close()
-
-    val fut = for {
-      s <- Future(lock)
-    } yield Right(ret)
-
-    fut.recover {
-      case e: Exception => Left(e.toString)
-    }
+    Future {
+      client.files().uploadBuilder(getLockPath(key))
+        .withMode(WriteMode.OVERWRITE)
+        .withClientModified(new Date(System.currentTimeMillis()))
+        .uploadAndFinish(lockIs)
+      lockIs.close()
+      Success(ret)
+    }.recover { case e: Exception => Failure(e)}
   }
 
 }

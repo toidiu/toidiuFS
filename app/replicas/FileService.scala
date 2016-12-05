@@ -55,7 +55,7 @@ trait FileService {
 
   def acquireLock(key: String): Future[Either[_, FSLock]]
 
-  def releaseLock(key: String): Future[Either[_, FSLock]]
+  def releaseLock(key: String): Future[Try[FSLock]]
 }
 
 object FileService {
