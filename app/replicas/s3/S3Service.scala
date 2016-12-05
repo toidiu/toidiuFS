@@ -15,6 +15,7 @@ import io.circe.generic.auto._
 import io.circe.generic.semiauto._
 import io.circe.parser._
 import io.circe.syntax._
+import models.Status.PostFileStatus
 import models.{FSLock, MetaDetail, MetaError, MetaServer}
 import org.apache.commons.io.IOUtils
 import replicas.FileService
@@ -22,6 +23,7 @@ import utils.{AppUtils, TimeUtils}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
+import scala.util.{Failure, Success, Try}
 
 /**
   * Created by toidiu on 11/17/16.
@@ -42,18 +44,18 @@ object S3Service extends FileService {
   override val mimeList: List[String] = AppUtils.s3MimeList
   override val maxLength: Long = AppUtils.s3MaxLength
 
-  override def postFile(meta: ByteString, key: String, inputStream: InputStream): Future[Either[_, Boolean]] = {
+  override def postFile(meta: ByteString, key: String, inputStream: InputStream): Future[Try[PostFileStatus]] = {
     val metaObj: ObjectMetadata = new ObjectMetadata()
     val map: util.Map[String, String] = new util.HashMap()
     map.put(META_OBJ_KEY, meta.utf8String)
     metaObj.setUserMetadata(map)
 
-    val fut: Future[Either[_, Boolean]] = for {
+    val fut = for {
       s <- Future(client.putObject(bucket.getName, key, inputStream, metaObj))
       l <- releaseLock(key)
-    } yield Right(true)
+    } yield Success(PostFileStatus("s3", true))
 
-    fut.recover { case e: Exception => Left(e.toString) }
+    fut.recover { case e: Exception => Failure(e) }
   }
 
   override def getFile(key: String): Future[Either[String, Source[ByteString, _]]] = {

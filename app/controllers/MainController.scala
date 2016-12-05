@@ -11,8 +11,8 @@ import io.circe.generic.auto._
 import io.circe.generic.semiauto._
 import io.circe.parser._
 import io.circe.syntax._
+import logic.FsReadLogic
 import logic.FsWriteLogic.checkConfigAndLock
-import logic.{FsReadLogic, FsWriteLogic}
 import play.api.http.HttpEntity
 import play.api.mvc.{Action, Controller, ResponseHeader, Result}
 import replicas.dbx.DbxService
@@ -23,7 +23,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.language.postfixOps
-import scala.util.{Failure, Success}
+import scala.util.Success
 
 /**
   * Created by toidiu on 11/2/16.
@@ -42,7 +42,11 @@ class MainController extends Controller {
         val getFileList = fsList.map(_.getFile(key))
 
         Future.sequence(getFileList)
-          .map { f => f.zip(metaList).withFilter(_._1.isRight).map(a => (a._1.right.get, a._2)) }
+          .map { f =>
+            f.zip(metaList)
+              .withFilter(_._1.isRight)
+              .map(a => (a._1.right.get, a._2))
+          }
           .map {
             case h :: t => Result(ResponseHeader(200), HttpEntity.Streamed(h._1, Some(h._2.bytes), Some(h._2.mime)))
             case Nil => BadRequest("Error reading from server")
@@ -70,14 +74,14 @@ class MainController extends Controller {
     val mime = req.headers.get("Content-Type").getOrElse(throw new Exception("no mime type"))
     val length = req.body.file.length()
 
-    checkConfigAndLock(key, mime, length).flatMap{ case Success(lockList ) =>
+    checkConfigAndLock(key, mime, length).flatMap { case Success(lockList) =>
       //attempt upload of file
       val uploadTime: String = TimeUtils.zoneAsString
       val ret = for (fs <- lockList) yield {
         val metaBytes = fs.buildMetaBytes(length, mime, uploadTime, key)
         fs.postFile(metaBytes, key, new FileInputStream(req.body.file))
       }
-      Future.sequence(ret).map(d => Ok(d.toString()))
+      Future.sequence(ret).map(resList => Ok(resList.toString()))
     }
   }
 

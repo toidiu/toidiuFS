@@ -28,7 +28,7 @@ object FsWriteLogic {
     Future.sequence(futList).map { lockList =>
       val availableFS = list.zip(lockList)
         .withFilter { case (fs, metaEither) => metaEither.isRight && !metaEither.right.get.locked }
-        .map{case (fs, metaEither) => fs}
+        .map { case (fs, metaEither) => fs }
       availableFS match {
         case fsList if fsList.length >= AppUtils.repMin =>
           //acquire lock

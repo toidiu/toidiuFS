@@ -15,6 +15,7 @@ import io.circe.generic.auto._
 import io.circe.generic.semiauto._
 import io.circe.parser._
 import io.circe.syntax._
+import models.Status.PostFileStatus
 import models.{FSLock, MetaDetail, MetaError, MetaServer}
 import replicas.FileService
 import utils.{AppUtils, TimeUtils}
@@ -22,6 +23,7 @@ import utils.{AppUtils, TimeUtils}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.concurrent.duration.FiniteDuration
+import scala.util.{Failure, Success, Try}
 
 /**
   * Created by toidiu on 11/2/16.
@@ -41,7 +43,7 @@ object DbxService extends FileService {
   override val mimeList: List[String] = AppUtils.dbxMimeList
   override val maxLength: Long = AppUtils.dbxMaxLength
 
-  override def postFile(meta: ByteString, key: String, inputStream: InputStream): Future[Either[_, Boolean]] = {
+  override def postFile(meta: ByteString, key: String, inputStream: InputStream): Future[Try[PostFileStatus]] = {
     val metaIs = Source.single(meta).runWith(StreamConverters.asInputStream(FiniteDuration(5, TimeUnit.SECONDS)))
     val saveIs = new java.io.SequenceInputStream(metaIs, inputStream)
 
@@ -52,12 +54,12 @@ object DbxService extends FileService {
 
     saveIs.close()
 
-    val fut: Future[Either[_, Boolean]] = for {
+    val fut = for {
       s <- Future(metadata)
       l <- releaseLock(key)
-    } yield Right(true)
+    } yield Success(PostFileStatus("dropbox", success = true))
 
-    fut.recover { case e: Exception => Left(e.toString) }
+    fut.recover { case e: Exception => Failure(e) }
   }
 
   override def getFile(key: String): Future[Either[String, Source[ByteString, _]]] = {

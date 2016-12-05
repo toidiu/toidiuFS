@@ -12,11 +12,13 @@ import io.circe.generic.auto._
 import io.circe.generic.semiauto._
 import io.circe.parser._
 import io.circe.syntax._
+import models.Status.PostFileStatus
 import models.{FSLock, MetaError, MetaServer}
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.language.postfixOps
+import scala.util.Try
 
 /**
   * Created by toidiu on 11/2/16.
@@ -32,7 +34,7 @@ trait FileService {
   val maxLength: Long
 
 
-  def postFile(meta: ByteString, key: String, inputStream: InputStream): Future[Either[_, Boolean]]
+  def postFile(meta: ByteString, key: String, inputStream: InputStream): Future[Try[PostFileStatus]]
 
   def getFile(key: String): Future[Either[String, Source[ByteString, _]]]
 
