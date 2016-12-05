@@ -53,7 +53,7 @@ trait FileService {
 
   def inspectOrCreateLock(key: String): Future[Try[FSLock]]
 
-  def acquireLock(key: String): Future[Either[_, FSLock]]
+  def acquireLock(key: String): Future[Try[FSLock]]
 
   def releaseLock(key: String): Future[Try[FSLock]]
 }

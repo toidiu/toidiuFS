@@ -94,7 +94,9 @@ object S3Service extends FileService {
   //-=-=-=-=-=-=-=-==-==-==-==-=-=-=-=-=-=-
   //Lock
   //-=-=-=-=-=-=-=-==-==-==-==-=-=-=-=-=-=-
-  override def createLock(key: String): Future[Try[FSLock]] = releaseLock(key)
+  override def createLock(key: String): Future[Try[FSLock]] = {
+    updateLock(key, FSLock(locked = false, TimeUtils.zoneAsString))
+  }
 
   override def inspectOrCreateLock(key: String): Future[Try[FSLock]] = {
     Future {
@@ -109,19 +111,15 @@ object S3Service extends FileService {
     }.recoverWith { case e: AmazonS3Exception => createLock(key) }
   }
 
-  override def acquireLock(key: String): Future[Either[_, FSLock]] = {
-    val ret: FSLock = FSLock(locked = true, TimeUtils.zoneAsString)
-    val lockContent = ret.asJson.noSpaces
-
-    val fut = for {
-      s <- Future(client.putObject(bucket.getName, getLockKey(key), lockContent))
-    } yield Right(ret)
-
-    fut.recover { case e: Exception => Left(e.toString) }
+  override def acquireLock(key: String): Future[Try[FSLock]] = {
+    updateLock(key, FSLock(locked = true, TimeUtils.zoneAsString))
   }
 
   override def releaseLock(key: String): Future[Try[FSLock]] = {
-    val ret: FSLock = FSLock(locked = false, TimeUtils.zoneAsString)
+    updateLock(key, FSLock(locked = false, TimeUtils.zoneAsString))
+  }
+
+  private def updateLock(key: String, ret: FSLock) = {
     val lockContent = ret.asJson.noSpaces
     Future {
       client.putObject(bucket.getName, getLockKey(key), lockContent)
