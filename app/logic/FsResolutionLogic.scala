@@ -32,14 +32,13 @@ object FsResolutionLogic {
     val parCheckFsConfig = FsWriteLogic.isFsConfigValid(meta.mime, meta.bytes)
 
     updatedAndNeedRes match {
-      case (hUp :: t, res) if res.nonEmpty =>
+      case (hUp :: t, resList) if resList.nonEmpty =>
         hUp.getFile(key).flatMap {
           case Success(source) =>
+            val futList = resList.map(res => if (parCheckFsConfig(res)) {
             val is = source.runWith(StreamConverters.asInputStream(FiniteDuration(5, TimeUnit.SECONDS)))
-
-            val futList = res.map(needsRes => if (parCheckFsConfig(needsRes)) {
-              val metaBytes = needsRes.buildMetaBytes(meta.bytes, meta.mime, TimeUtils.zoneAsString, key)
-              needsRes.postFile(metaBytes, key, is)
+              val metaBytes = res.buildMetaBytes(meta.bytes, meta.mime, TimeUtils.zoneAsString, key)
+              res.postFile(metaBytes, key, is)
             } else Future(Nil))
             Future.sequence(futList)
           case Failure(err) => Future(Nil)
