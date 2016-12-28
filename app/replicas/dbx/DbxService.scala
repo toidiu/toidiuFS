@@ -1,11 +1,12 @@
 package replicas.dbx
 
-import java.io.InputStream
+import java.io.{ByteArrayInputStream, File, InputStream}
 import java.sql.Date
 import java.util.concurrent.TimeUnit
 
 import akka.stream.scaladsl.{Source, StreamConverters}
 import akka.util.ByteString
+import cache.CacheUtils
 import com.dropbox.core.DbxRequestConfig
 import com.dropbox.core.v2.DbxClientV2
 import com.dropbox.core.v2.files.{DownloadErrorException, WriteMode}
@@ -45,35 +46,36 @@ object DbxService extends FileService {
   override val maxLength: Long = AppUtils.dbxMaxLength
 
   override def postFile(meta: ByteString, key: String, inputStream: InputStream): Future[Try[PostFileStatus]] = {
-    val metaIs = Source.single(meta).runWith(StreamConverters.asInputStream(FiniteDuration(5, TimeUnit.SECONDS)))
-    val saveIs = new java.io.SequenceInputStream(metaIs, inputStream)
+    lazy val saveIs = new java.io.SequenceInputStream(new ByteArrayInputStream(meta.toArray), inputStream)
 
-    val metadata = client.files().uploadBuilder(getPath(key))
-      .withMode(WriteMode.OVERWRITE)
-      .withClientModified(new Date(System.currentTimeMillis()))
-      .uploadAndFinish(saveIs)
-
-    saveIs.close()
+    def metadata = Future {
+      client.files().uploadBuilder(getPath(key))
+        .withMode(WriteMode.OVERWRITE)
+        .withClientModified(new Date(System.currentTimeMillis()))
+        .uploadAndFinish(saveIs)
+    }
 
     val fut = for {
-      s <- Future(metadata)
+      s <- metadata
+      close <- Future(saveIs.close())
       l <- releaseLock(key)
     } yield Success(PostFileStatus("dropbox", success = true))
 
-    fut.recover { case e: Exception => Failure(e) }
+    fut.recover { case e: Exception =>
+      releaseLock(key)
+      Failure(e)
+    }
   }
 
-  override def getFile(key: String): Future[Try[Source[ByteString, _]]] = {
-    Future {
-      lazy val stream: () => InputStream = client.files().download(getPath(key)).getInputStream
-      var one = true
-      Success(StreamConverters.fromInputStream(stream).map { bs =>
-        if (one) {
-          one = false
-          bs.drop(FileService.bufferByte)
-        } else bs
-      })
-    }.recover { case e: Exception => Failure(e) }
+  override def getFile(key: String): Future[Try[File]] = {
+    var dropOne = true
+    val fut: Future[Try[File]] = for {
+      stream <- Future(client.files().download(getPath(key)).getInputStream)
+      trim = Future(stream.skip(FileService.bufferByte.toLong))
+      file <- CacheUtils.saveCachedFile(key, stream)
+    } yield file
+
+    fut.recover { case e: Exception => Failure(e) }
   }
 
   override def getMeta(key: String): Future[Either[MetaError, MetaServer]] = {

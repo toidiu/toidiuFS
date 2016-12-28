@@ -1,5 +1,6 @@
 package logic
 
+import java.io.FileInputStream
 import java.util.concurrent.TimeUnit
 
 import akka.stream.scaladsl.StreamConverters
@@ -34,9 +35,10 @@ object FsResolutionLogic {
     needsRes match {
       case (resList) if resList.nonEmpty =>
         updated.getFile(key).flatMap {
-          case Success(source) =>
+          case Success(file) =>
             val futList = resList.map(res => if (parCheckFsConfig(res)) {
-              val is = source.runWith(StreamConverters.asInputStream(FiniteDuration(5, TimeUnit.SECONDS)))
+//              val is = source.runWith(StreamConverters.asInputStream(FiniteDuration(5, TimeUnit.SECONDS)))
+              val is = new FileInputStream(file)
               val metaBytes = res.buildMetaBytes(meta.bytes, meta.mime, TimeUtils.zoneAsString, key)
               res.postFile(metaBytes, key, is)
             } else Future(Nil))

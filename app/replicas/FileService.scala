@@ -1,6 +1,6 @@
 package replicas
 
-import java.io.InputStream
+import java.io.{File, InputStream}
 
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
@@ -38,7 +38,7 @@ trait FileService {
 
   def postFile(meta: ByteString, key: String, inputStream: InputStream): Future[Try[PostFileStatus]]
 
-  def getFile(key: String): Future[Try[Source[ByteString, _]]]
+  def getFile(key: String): Future[Try[File]]
 
   def getMeta(key: String): Future[Either[MetaError, MetaServer]]
 

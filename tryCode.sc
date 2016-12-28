@@ -41,6 +41,10 @@ import scala.concurrent.Future
 //val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss z")
 //getNow.format(formatter)
 
+val l = List("a","b","c")
+l.zipWithIndex
+
+
 def d: () => String = () => "hi"
 
 d.apply()

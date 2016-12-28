@@ -1,11 +1,11 @@
 package replicas.s3
 
-import java.io.{InputStream, StringWriter}
+import java.io.{File, InputStream, StringWriter}
 import java.nio.charset.StandardCharsets
 import java.util
 
-import akka.stream.scaladsl.{Source, StreamConverters}
 import akka.util.ByteString
+import cache.CacheUtils
 import com.amazonaws.auth.BasicAWSCredentials
 import com.amazonaws.services.s3.model.{AmazonS3Exception, ObjectMetadata}
 import com.amazonaws.services.s3.{AmazonS3, AmazonS3Client}
@@ -59,13 +59,14 @@ object S3Service extends FileService {
     fut.recover { case e: Exception => Failure(e) }
   }
 
-  override def getFile(key: String): Future[Try[Source[ByteString, _]]] = {
-    Future {
-      var stream: () => InputStream = null
-      val op = client.getObject(bucket.getName, key)
-      stream = op.getObjectContent
-      Success(StreamConverters.fromInputStream(stream))
-    }.recover { case e: Exception => Failure(e) }
+  override def getFile(key: String): Future[Try[File]] = {
+    val fut: Future[Try[File]] = for {
+      op <- Future(client.getObject(bucket.getName, key))
+      stream <- Future(op.getObjectContent)
+      file <- CacheUtils.saveCachedFile(key, stream)
+    } yield file
+
+    fut.recover { case e: Exception => Failure(e) }
   }
 
   override def getMeta(key: String): Future[Either[MetaError, MetaServer]] = {

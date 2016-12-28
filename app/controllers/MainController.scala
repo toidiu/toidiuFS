@@ -2,6 +2,7 @@ package controllers
 
 import java.io.FileInputStream
 
+import akka.stream.scaladsl.StreamConverters
 import akka.util.ByteString
 import io.circe._
 import io.circe.generic.JsonCodec
@@ -14,8 +15,6 @@ import logic.FsWriteLogic.fsListCheckConfigAndLock
 import play.api.http.HttpEntity
 import play.api.mvc.{Action, Controller, ResponseHeader, Result}
 import replicas.FileService
-import replicas.dbx.DbxService
-import replicas.s3.S3Service
 import utils.TimeUtils
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -35,12 +34,19 @@ class MainController extends Controller {
   def index = Action.async(Future(Ok("Hi")))
 
   def getFile(key: String) = Action.async { req =>
-    FsReadLogic.readFileFromServers(key).flatMap {
-      case Success((byte, meta, resolution)) =>
-        Future(Result(ResponseHeader(200), HttpEntity.Streamed(byte, Some(meta.bytes), Some(meta.mime))))
-          .andThen { case _ => resolution.apply() }
-      case Failure(err) => Future(BadRequest(err.toString))
-    }
+    val fut = for {
+      read <- FsReadLogic.readFileFromServers(key)
+      if read.isSuccess
+      file = read.get._1
+      meta = read.get._2
+      resol = read.get._3
+      stream = StreamConverters.fromInputStream(() => new FileInputStream(file))
+      body = HttpEntity.Streamed(stream, Some(meta.bytes), Some(meta.mime))
+      ret <- Future(Result(ResponseHeader(200), body))
+      resolve <- resol.apply()
+    } yield ret
+
+    fut.recover { case err => BadRequest(err.toString) }
   }
 
   def getMeta(key: String) = Action.async { req =>
@@ -60,29 +66,10 @@ class MainController extends Controller {
           val metaBytes = fs.buildMetaBytes(length, mime, TimeUtils.zoneAsString, key)
           fs.postFile(metaBytes, key, new FileInputStream(req.body.file))
         }
-        Future.sequence(ret).map(resList => Ok(resList.toString()))
+        Future.sequence(ret).map(resList => Ok(resList.toString))
       case Failure(err) => Future(BadRequest(err.getMessage))
     }
   }
-
-  def acquireLock(key: String) = Action.async { req =>
-    S3Service.acquireLock(key).flatMap(a =>
-      DbxService.acquireLock(key).map(b => Ok(a.toString + b.toString))
-    )
-  }
-
-  def getLockInfo(key: String) = Action.async { req =>
-    S3Service.inspectOrCreateLock(key).flatMap(a =>
-      DbxService.inspectOrCreateLock(key).map(b => Ok(a.toString + b.toString))
-    )
-  }
-
-  def releaseLock(key: String) = Action.async { req =>
-    S3Service.releaseLock(key).flatMap(a =>
-      DbxService.releaseLock(key).map(b => Ok(a.toString + b.toString))
-    )
-  }
-
 
 }
 

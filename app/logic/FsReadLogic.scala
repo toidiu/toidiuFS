@@ -1,5 +1,7 @@
 package logic
 
+import java.io.File
+
 import akka.stream.scaladsl.Source
 import akka.util.ByteString
 import io.circe._
@@ -35,7 +37,7 @@ object FsReadLogic {
     }
   }
 
-  def readFileFromServers(key: String): Future[Try[(Source[ByteString, _], MetaServer, Resolution)]] = {
+  def readFileFromServers(key: String): Future[Try[(File, MetaServer, Resolution)]] = {
     getMostUpdatedServers(key).flatMap {
       case Success((metaList, fsList, resolution)) =>
         Future.sequence(fsList.map(_.getFile(key)))
