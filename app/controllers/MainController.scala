@@ -11,7 +11,7 @@ import io.circe.generic.semiauto._
 import io.circe.parser._
 import io.circe.syntax._
 import logic.FsReadLogic
-import logic.FsWriteLogic.fsListCheckConfigAndLock
+import logic.FsWriteLogic.checkConfigAcquireLock
 import play.api.http.HttpEntity
 import play.api.mvc.{Action, Controller, ResponseHeader, Result}
 import replicas.FileService
@@ -20,7 +20,7 @@ import utils.TimeUtils
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.language.postfixOps
-import scala.util.{Failure, Success}
+import scala.util.{Failure, Success, Try}
 
 /**
   * Created by toidiu on 11/2/16.
@@ -36,7 +36,6 @@ class MainController extends Controller {
   def getFile(key: String) = Action.async { req =>
     val fut = for {
       read <- FsReadLogic.readFileFromServers(key)
-      if read.isSuccess
       (file, meta, resolution) = read.get
       stream = StreamConverters.fromInputStream(() => new FileInputStream(file))
       body = HttpEntity.Streamed(stream, Some(meta.bytes), Some(meta.mime))
@@ -47,16 +46,26 @@ class MainController extends Controller {
   }
 
   def getMeta(key: String) = Action.async { req =>
-    FsReadLogic.getAllMetaList(key).map { json =>
-      Result(ResponseHeader(200), HttpEntity.Strict(ByteString(json.noSpaces), Some("application/json")))
-    }
+    val fut = for {
+      json <- FsReadLogic.getAllMetaList(key)
+      body = HttpEntity.Strict(ByteString(json.get.noSpaces), Some("application/json"))
+      ret <- Future(Result(ResponseHeader(200), body))
+    } yield ret
+
+    fut.recover { case err => BadRequest(err.toString) }
   }
 
   def postFile(key: String) = Action.async(parse.temporaryFile) { req =>
-    val mime = req.headers.get("Content-Type").getOrElse(throw new Exception("no mime type"))
+    lazy val mime = req.headers.get("Content-Type").getOrElse(throw new Exception("no mime type"))
     val length = req.body.file.length()
 
-    fsListCheckConfigAndLock(key, mime, length).flatMap {
+//    for{
+//      m <- mime
+//      len = req.body.file.length()
+//      cl <- checkConfigAcquireLock(key, m.get, len)
+//    }
+
+    val fut = checkConfigAcquireLock(key, mime, length).flatMap {
       case Success(lockList) =>
         //attempt upload of file
         val ret = for (fs <- lockList) yield {
@@ -66,6 +75,8 @@ class MainController extends Controller {
         Future.sequence(ret).map(resList => Ok(resList.toString))
       case Failure(err) => Future(BadRequest(err.getMessage))
     }
+
+    fut.recover { case e => BadRequest(e.getMessage) }
   }
 
 }

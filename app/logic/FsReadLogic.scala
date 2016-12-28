@@ -2,8 +2,6 @@ package logic
 
 import java.io.File
 
-import akka.stream.scaladsl.Source
-import akka.util.ByteString
 import io.circe._
 import io.circe.generic.JsonCodec
 import io.circe.generic.auto._
@@ -26,15 +24,14 @@ import scala.util.{Failure, Success, Try}
   */
 object FsReadLogic {
 
-  def getAllMetaList(key: String): Future[Json] = {
+  def getAllMetaList(key: String): Future[Try[Json]] = {
     Future.sequence(ALL_SERVICES.map(_.getMeta(key))).map { metaList =>
       val jsonList = for {
         metaEither <- metaList
         json <- List(if (metaEither.isRight) metaEither.right.get.asJson else metaEither.left.get.asJson)
       } yield json
-
-      jsonList.asJson
-    }
+      Success(jsonList.asJson)
+    }.recover { case e => Failure(e) }
   }
 
   def readFileFromServers(key: String): Future[Try[(File, MetaServer, Resolution)]] = {

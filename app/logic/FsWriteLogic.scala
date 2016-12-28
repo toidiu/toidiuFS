@@ -15,12 +15,13 @@ import scala.util.{Failure, Success, Try}
 object FsWriteLogic {
 
 
-  def fsListCheckConfigAndLock(key: String, mime: String, length: Long): Future[Try[List[FileService]]] = {
-    for {
+  def checkConfigAcquireLock(key: String, mime: String, length: Long): Future[Try[List[FileService]]] = {
+    val fut = for {
       confFSList <- Future(FsWriteLogic.checkFsConfigConstraints(mime, length))
-      if confFSList.isSuccess
       lockFSList <- FsWriteLogic.checkLockAndAcquireLock(key, confFSList.get)
     } yield lockFSList
+
+    fut.recover{case e => Failure(e)}
   }
 
   def checkLockAndAcquireLock(key: String, list: List[FileService]): Future[Try[List[FileService]]] = {
