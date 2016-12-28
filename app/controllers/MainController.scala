@@ -37,13 +37,10 @@ class MainController extends Controller {
     val fut = for {
       read <- FsReadLogic.readFileFromServers(key)
       if read.isSuccess
-      file = read.get._1
-      meta = read.get._2
-      resol = read.get._3
+      (file, meta, resolution) = read.get
       stream = StreamConverters.fromInputStream(() => new FileInputStream(file))
       body = HttpEntity.Streamed(stream, Some(meta.bytes), Some(meta.mime))
-      ret <- Future(Result(ResponseHeader(200), body))
-      resolve <- resol.apply()
+      ret <- Future(Result(ResponseHeader(200), body)).andThen { case _ => resolution.apply() }
     } yield ret
 
     fut.recover { case err => BadRequest(err.toString) }
