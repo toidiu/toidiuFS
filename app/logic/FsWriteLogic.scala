@@ -16,12 +16,10 @@ object FsWriteLogic {
 
 
   def checkConfigAcquireLock(key: String, mime: String, length: Long): Future[Try[List[FileService]]] = {
-    val fut = for {
+    for {
       confFSList <- Future(FsWriteLogic.checkFsConfigConstraints(mime, length))
       lockFSList <- FsWriteLogic.checkLockAndAcquireLock(key, confFSList.get)
     } yield lockFSList
-
-    fut.recover{case e => Failure(e)}
   }
 
   def checkLockAndAcquireLock(key: String, list: List[FileService]): Future[Try[List[FileService]]] = {

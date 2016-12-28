@@ -31,7 +31,7 @@ object FsReadLogic {
         json <- List(if (metaEither.isRight) metaEither.right.get.asJson else metaEither.left.get.asJson)
       } yield json
       Success(jsonList.asJson)
-    }.recover { case e => Failure(e) }
+    }
   }
 
   def readFileFromServers(key: String): Future[Try[(File, MetaServer, Resolution)]] = {
@@ -45,7 +45,7 @@ object FsReadLogic {
               .head
           }
       case Failure(err) => Future(Failure(err))
-    }.recover { case e: Exception => Failure(e) }
+    }
   }
 
   def getMostUpdatedServers(key: String): Future[Try[(List[MetaServer], List[FileService], Resolution)]] = {

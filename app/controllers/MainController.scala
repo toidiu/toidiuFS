@@ -59,25 +59,20 @@ class MainController extends Controller {
     lazy val mime = req.headers.get("Content-Type").getOrElse(throw new Exception("no mime type"))
     val length = req.body.file.length()
 
-//    for{
-//      m <- mime
-//      len = req.body.file.length()
-//      cl <- checkConfigAcquireLock(key, m.get, len)
-//    }
-
     val fut = checkConfigAcquireLock(key, mime, length).flatMap {
       case Success(lockList) =>
         //attempt upload of file
-        val ret = for (fs <- lockList) yield {
+        val listFut = for (fs <- lockList) yield {
           val metaBytes = fs.buildMetaBytes(length, mime, TimeUtils.zoneAsString, key)
           fs.postFile(metaBytes, key, new FileInputStream(req.body.file))
         }
-        Future.sequence(ret).map(resList => Ok(resList.toString))
+        Future.sequence(listFut).map(resList => Ok(resList.toString))
       case Failure(err) => Future(BadRequest(err.getMessage))
     }
 
     fut.recover { case e => BadRequest(e.getMessage) }
   }
+
 
 }
 

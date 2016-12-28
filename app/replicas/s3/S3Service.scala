@@ -56,17 +56,19 @@ object S3Service extends FileService {
       l <- releaseLock(key)
     } yield Success(PostFileStatus("s3", success = true))
 
-    fut.recover { case e: Exception => Failure(e) }
+    fut.recover { case e: Exception =>
+      releaseLock(key)
+      Failure(e)
+    }
   }
 
   override def getFile(key: String): Future[Try[File]] = {
-    val fut: Future[Try[File]] = for {
+    for {
       op <- Future(client.getObject(bucket.getName, key))
       stream <- Future(op.getObjectContent)
       file <- CacheUtils.saveCachedFile(key, stream)
     } yield file
 
-    fut.recover { case e: Exception => Failure(e) }
   }
 
   override def getMeta(key: String): Future[Either[MetaError, MetaServer]] = {
@@ -120,12 +122,12 @@ object S3Service extends FileService {
     updateLock(key, FSLock(locked = false, TimeUtils.zoneAsString))
   }
 
-  private def updateLock(key: String, ret: FSLock) = {
+  private def updateLock(key: String, ret: FSLock): Future[Try[FSLock]] = {
     val lockContent = ret.asJson.noSpaces
     Future {
       client.putObject(bucket.getName, getLockKey(key), lockContent)
       Success(ret)
-    }.recover { case e: Exception => Failure(e) }
+    }
   }
 
 }

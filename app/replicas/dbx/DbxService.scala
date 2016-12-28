@@ -69,13 +69,12 @@ object DbxService extends FileService {
 
   override def getFile(key: String): Future[Try[File]] = {
     var dropOne = true
-    val fut: Future[Try[File]] = for {
+    for {
       stream <- Future(client.files().download(getPath(key)).getInputStream)
       trim = Future(stream.skip(FileService.bufferByte.toLong))
       file <- CacheUtils.saveCachedFile(key, stream)
     } yield file
 
-    fut.recover { case e: Exception => Failure(e) }
   }
 
   override def getMeta(key: String): Future[Either[MetaError, MetaServer]] = {
@@ -137,7 +136,7 @@ object DbxService extends FileService {
     updateLock(key, FSLock(locked = false, TimeUtils.zoneAsString))
   }
 
-  private def updateLock(key: String, ret: FSLock) = {
+  private def updateLock(key: String, ret: FSLock): Future[Try[FSLock]] = {
     val lockContent = ByteString(ret.asJson.noSpaces)
     val lockIs = Source.single(lockContent).runWith(StreamConverters.asInputStream(FiniteDuration(5, TimeUnit.SECONDS)))
 
@@ -148,7 +147,7 @@ object DbxService extends FileService {
         .uploadAndFinish(lockIs)
       lockIs.close()
       Success(ret)
-    }.recover { case e: Exception => Failure(e) }
+    }
   }
 }
 
