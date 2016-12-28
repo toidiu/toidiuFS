@@ -26,7 +26,10 @@ object FsWriteLogic {
     val futList = list.map(_.inspectOrCreateLock(key))
     Future.sequence(futList).map { lockList =>
       val availableFS = list.zip(lockList)
-        .withFilter { case (fs, Success(metaEither)) => !metaEither.locked }
+        .withFilter {
+          case (fs, Success(metaEither)) => !metaEither.locked
+          case (_, _) => false
+        }
         .map { case (fs, metaEither) => fs }
       availableFS match {
         case fsList if fsList.length >= AppUtils.repMin =>
@@ -47,10 +50,9 @@ object FsWriteLogic {
     //-----check: if we meet min replica
     retList match {
       case l if l.length >= repMin => Success(l)
-      case l => {
+      case l =>
         val serversList = l.foldLeft("")((a, b) => a + b.getClass.getSimpleName)
         Failure(new FsMinReplicaException("We don't meet the min replicas due to config restraints. Valid servers: " + serversList))
-      }
     }
   }
 
