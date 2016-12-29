@@ -27,6 +27,7 @@ object FsWriteLogic {
           val metaBytes = fs.buildMetaBytes(length, mime, TimeUtils.zoneAsString, key)
           fs.postFile(metaBytes, key, new FileInputStream(tempFile.file))
         }
+
         Future.sequence(listFut).map(resList => Ok(resList.toString))
       case Failure(err) => Future(BadRequest(err.getMessage))
     }
@@ -34,39 +35,42 @@ object FsWriteLogic {
 
   private def checkConfigAcquireLock(key: String, mime: String, length: Long): Future[Try[List[FileService]]] = {
     for {
-      confFSList <- Future(checkConfigConstraints(mime, length))
+      confFSList <- Future(getConfigValidServices(mime, length))
       lockFSList <- acquireLock(key, confFSList.get)
     } yield lockFSList
   }
 
   private def acquireLock(key: String, list: List[FileService]): Future[Try[List[FileService]]] = {
-    val futList = list.map(_.inspectOrCreateLock(key))
-    Future.sequence(futList).map { lockList =>
-      val availableFS = list.zip(lockList)
-        .withFilter {
-          case (fs, Success(metaEither)) => !metaEither.locked
-          case (_, _) => false
-        }
-        .map { case (fs, metaEither) => fs }
-      availableFS match {
-        case fsList if fsList.length >= repMin =>
-          //acquire lock
-          Success(fsList.map { fs => fs.acquireLock(key); fs })
-        case fsList =>
-          fsList.map(_.releaseLock(key))
-          val serversList = fsList.map(_.getClass.getSimpleName).mkString(", ")
-          Failure(new FsMinReplicaException("We don't meet the min replicas due to locks/availability. Available servers: " + serversList))
-      }
+    val futCheckLock = for {
+      inspectLock <- Future.sequence(list.map(_.inspectOrCreateLock(key)))
+    } yield for {
+      (fs, lock) <- list.zip(inspectLock)
+      if lock.isSuccess && !lock.get.locked
+    } yield fs
+
+    val futAcqLockList = for {
+      fsList <- futCheckLock
+      if fsList.length >= repMin
+    } yield for {
+      fs <- fsList
+    } yield for {
+      acqLock <- fs.acquireLock(key)
+      if acqLock.isSuccess
+    } yield fs
+
+    (for {
+      flatten <- futAcqLockList
+      fsList <- Future.sequence(flatten)
+    } yield Success(fsList)) recover { case _ =>
+      Failure(new FsMinReplicaException("We don't meet the min replicas due to locks/availability."))
     }
   }
 
-  private def checkConfigConstraints(mime: String, length: Long): Try[List[FileService]] = {
-    val retList = ALL_SERVICES.filter(isFsConfigValid(mime, length))
-
-    retList match {
-      case l if l.length >= repMin => Success(l)
-      case l =>
-        val serversList = l.foldLeft("")((a, b) => a + b.getClass.getSimpleName)
+  private def getConfigValidServices(mime: String, length: Long): Try[List[FileService]] = {
+    ALL_SERVICES.filter(isFsConfigValid(mime, length)) match {
+      case fsList if fsList.length >= repMin => Success(fsList)
+      case fsList =>
+        val serversList = fsList.map(_.getClass.getSimpleName).mkString(", ")
         Failure(new FsMinReplicaException("We don't meet the min replicas due to config restraints. Valid servers: " + serversList))
     }
   }
