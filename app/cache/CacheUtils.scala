@@ -13,7 +13,7 @@ import scala.util.{Failure, Random, Success, Try}
   */
 object CacheUtils {
 
-  val CACHE_FOLDER = "cache"
+  val CACHE_FOLDER = "localFileCache"
   val cacheFolder = new File(CACHE_FOLDER)
   cacheFolder.mkdirs()
 
