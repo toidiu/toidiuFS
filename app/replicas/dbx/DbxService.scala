@@ -17,10 +17,10 @@ import io.circe.generic.semiauto._
 import io.circe.parser._
 import io.circe.syntax._
 import models.{FSLock, MetaDetail, MetaServer}
-import replicas.FileService
+import replicas.{ReplicaUtils, FileService}
 import utils.ErrorUtils.MetaError
 import utils.StatusUtils.PostFileStatus
-import utils.{AppUtils, TimeUtils}
+import utils.TimeUtils
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -34,16 +34,16 @@ import scala.util.{Failure, Success, Try}
 object DbxService extends FileService {
 
   lazy val config: DbxRequestConfig = DbxRequestConfig.newBuilder("toidiuFS").withUserLocale("en_US").build()
-  lazy val client: DbxClientV2 = new DbxClientV2(config, AppUtils.dbxToken)
+  lazy val client: DbxClientV2 = new DbxClientV2(config, ReplicaUtils.dbxToken)
 
-  def getPath(key: String): String = AppUtils.dbxPath + key
+  def getPath(key: String): String = ReplicaUtils.dbxPath + key
 
   def getLockPath(key: String): String = "/lock/" + key + ".lock"
 
-  override val isEnable: Boolean = AppUtils.dbxEnable
-  override val isWhiteList: Boolean = AppUtils.dbxIsWhiteList
-  override val mimeList: List[String] = AppUtils.dbxMimeList
-  override val maxLength: Long = AppUtils.dbxMaxLength
+  override val isEnable: Boolean = ReplicaUtils.dbxEnable
+  override val isWhiteList: Boolean = ReplicaUtils.dbxIsWhiteList
+  override val mimeList: List[String] = ReplicaUtils.dbxMimeList
+  override val maxLength: Long = ReplicaUtils.dbxMaxLength
 
   override def postFile(meta: ByteString, key: String, inputStream: InputStream): Future[Try[PostFileStatus]] = {
     lazy val saveIs = new java.io.SequenceInputStream(new ByteArrayInputStream(meta.toArray), inputStream)

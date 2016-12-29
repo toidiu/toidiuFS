@@ -6,9 +6,9 @@ import play.api.libs.Files.TemporaryFile
 import play.api.mvc.Result
 import play.api.mvc.Results.{BadRequest, Ok}
 import replicas.FileService
-import utils.AppUtils._
+import utils.AppUtils.{ALL_SERVICES, repMin}
 import utils.ErrorUtils.FsMinReplicaException
-import utils.{AppUtils, TimeUtils}
+import utils.TimeUtils
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -49,7 +49,7 @@ object FsWriteLogic {
         }
         .map { case (fs, metaEither) => fs }
       availableFS match {
-        case fsList if fsList.length >= AppUtils.repMin =>
+        case fsList if fsList.length >= repMin =>
           //acquire lock
           Success(fsList.map { fs => fs.acquireLock(key); fs })
         case fsList =>

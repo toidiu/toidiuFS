@@ -17,10 +17,10 @@ import io.circe.parser._
 import io.circe.syntax._
 import models.{FSLock, MetaDetail, MetaServer}
 import org.apache.commons.io.IOUtils
-import replicas.FileService
+import replicas.{ReplicaUtils, FileService}
 import utils.ErrorUtils.MetaError
 import utils.StatusUtils.PostFileStatus
-import utils.{AppUtils, TimeUtils}
+import utils.TimeUtils
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -31,19 +31,19 @@ import scala.util.{Failure, Success, Try}
   */
 object S3Service extends FileService {
 
-  lazy val cred = new BasicAWSCredentials(AppUtils.s3AccessKey, AppUtils.s3SecretKey)
+  lazy val cred = new BasicAWSCredentials(ReplicaUtils.s3AccessKey, ReplicaUtils.s3SecretKey)
   lazy val client: AmazonS3 = new AmazonS3Client(cred)
-  lazy val bucket = client.createBucket(AppUtils.s3Bucket)
+  lazy val bucket = client.createBucket(ReplicaUtils.s3Bucket)
 
   private val META_OBJ_KEY: String = "meta"
   private val LOCK_OBJ_KEY: String = "lock"
 
   def getLockKey(key: String) = "lock/" + key
 
-  override val isEnable: Boolean = AppUtils.s3Enable
-  override val isWhiteList: Boolean = AppUtils.s3IsWhiteList
-  override val mimeList: List[String] = AppUtils.s3MimeList
-  override val maxLength: Long = AppUtils.s3MaxLength
+  override val isEnable: Boolean = ReplicaUtils.s3Enable
+  override val isWhiteList: Boolean = ReplicaUtils.s3IsWhiteList
+  override val mimeList: List[String] = ReplicaUtils.s3MimeList
+  override val maxLength: Long = ReplicaUtils.s3MaxLength
 
   override def postFile(meta: ByteString, key: String, inputStream: InputStream): Future[Try[PostFileStatus]] = {
     val metaObj: ObjectMetadata = new ObjectMetadata()
@@ -89,7 +89,7 @@ object S3Service extends FileService {
 
   override def buildMetaBytes(bytes: Long, mime: String,
                               uploadedAt: String, key: String): ByteString = {
-    val detail: MetaDetail = MetaDetail(None, Some(AppUtils.s3Bucket), Some(key))
+    val detail: MetaDetail = MetaDetail(None, Some(ReplicaUtils.s3Bucket), Some(key))
     val jsonString = MetaServer(bytes, mime, uploadedAt, "s3", detail).asJson.noSpaces
     ByteString(jsonString)
   }
