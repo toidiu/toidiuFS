@@ -1,9 +1,14 @@
 package logic
 
+import java.io.FileInputStream
+
+import play.api.libs.Files.TemporaryFile
+import play.api.mvc.Result
+import play.api.mvc.Results.{BadRequest, Ok}
 import replicas.FileService
-import utils.AppUtils
 import utils.AppUtils._
 import utils.ErrorUtils.FsMinReplicaException
+import utils.{AppUtils, TimeUtils}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -14,15 +19,27 @@ import scala.util.{Failure, Success, Try}
   */
 object FsWriteLogic {
 
+  def resultPostFile(key: String, mime: String, length: Long, tempFile: TemporaryFile): Future[Result] = {
+    checkConfigAcquireLock(key, mime, length).flatMap {
+      case Success(lockList) =>
+        //attempt upload of file
+        val listFut = for (fs <- lockList) yield {
+          val metaBytes = fs.buildMetaBytes(length, mime, TimeUtils.zoneAsString, key)
+          fs.postFile(metaBytes, key, new FileInputStream(tempFile.file))
+        }
+        Future.sequence(listFut).map(resList => Ok(resList.toString))
+      case Failure(err) => Future(BadRequest(err.getMessage))
+    }
+  }
 
-  def checkConfigAcquireLock(key: String, mime: String, length: Long): Future[Try[List[FileService]]] = {
+  private def checkConfigAcquireLock(key: String, mime: String, length: Long): Future[Try[List[FileService]]] = {
     for {
       confFSList <- Future(FsWriteLogic.checkFsConfigConstraints(mime, length))
       lockFSList <- FsWriteLogic.checkLockAndAcquireLock(key, confFSList.get)
     } yield lockFSList
   }
 
-  def checkLockAndAcquireLock(key: String, list: List[FileService]): Future[Try[List[FileService]]] = {
+  private def checkLockAndAcquireLock(key: String, list: List[FileService]): Future[Try[List[FileService]]] = {
     val futList = list.map(_.inspectOrCreateLock(key))
     Future.sequence(futList).map { lockList =>
       val availableFS = list.zip(lockList)
@@ -43,7 +60,7 @@ object FsWriteLogic {
     }
   }
 
-  def checkFsConfigConstraints(mime: String, length: Long): Try[List[FileService]] = {
+  private def checkFsConfigConstraints(mime: String, length: Long): Try[List[FileService]] = {
     //-----check: length, mime, enabled
     val retList = ALL_SERVICES.filter(isFsConfigValid(mime, length))
 
@@ -56,12 +73,12 @@ object FsWriteLogic {
     }
   }
 
-  def isFsConfigValid(mime: String, length: Long): (FileService) => Boolean = { fs =>
+  private[logic] def isFsConfigValid(mime: String, length: Long): (FileService) => Boolean = { fs =>
     fs.isEnable && length < fs.maxLength && isMimeAllowed(mime, fs.isWhiteList, fs.mimeList)
   }
 
 
-  def isMimeAllowed(mime: String, isWhiteList: Boolean, list: List[String]): Boolean =
+  private[logic] def isMimeAllowed(mime: String, isWhiteList: Boolean, list: List[String]): Boolean =
     if (isWhiteList) list.contains(mime) else !list.contains(mime)
 
 }

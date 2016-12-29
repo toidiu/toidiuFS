@@ -1,12 +1,13 @@
 package cache
 
 import java.io._
+import java.util.UUID
 
 import org.apache.commons.io.IOUtils
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
-import scala.util.{Failure, Random, Success, Try}
+import scala.util.{Failure, Success, Try}
 
 /**
   * Created by toidiu on 12/27/16.
@@ -18,7 +19,7 @@ object CacheUtils {
   cacheFolder.mkdirs()
 
   def saveCachedFile(key: String, in: InputStream): Future[Try[File]] = {
-    val f = new File(cacheFolder, key+"_"+System.currentTimeMillis()+Random.nextInt())
+    val f = new File(cacheFolder, key + "_" + System.currentTimeMillis() + UUID.randomUUID())
     val out = new FileOutputStream(f)
     Future {
       IOUtils.copy(in, out)

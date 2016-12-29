@@ -1,7 +1,9 @@
 package logic
 
-import java.io.File
+import java.io.{File, FileInputStream}
 
+import akka.stream.scaladsl.StreamConverters
+import akka.util.ByteString
 import io.circe._
 import io.circe.generic.JsonCodec
 import io.circe.generic.auto._
@@ -10,6 +12,8 @@ import io.circe.parser._
 import io.circe.syntax._
 import logic.FsResolutionLogic.{Resolution, attemptResolution}
 import models.MetaServer
+import play.api.http.HttpEntity
+import play.api.mvc.{ResponseHeader, Result}
 import replicas.FileService
 import utils.AppUtils.ALL_SERVICES
 import utils.ErrorUtils.FsReadException
@@ -24,7 +28,25 @@ import scala.util.{Failure, Success, Try}
   */
 object FsReadLogic {
 
-  def getAllMetaList(key: String): Future[Try[Json]] = {
+  def resultMetaList(key: String): Future[Result] = {
+    for {
+      json <- FsReadLogic.getAllMetaList(key)
+      body = HttpEntity.Strict(ByteString(json.get.noSpaces), Some("application/json"))
+      ret <- Future(Result(ResponseHeader(200), body))
+    } yield ret
+  }
+
+  def resultFile(key: String): Future[Result] = {
+    for {
+      read <- FsReadLogic.readFileFromServers(key)
+      (file, meta, resolution) = read.get
+      stream = StreamConverters.fromInputStream(() => new FileInputStream(file))
+      body = HttpEntity.Streamed(stream, Some(meta.bytes), Some(meta.mime))
+      ret <- Future(Result(ResponseHeader(200), body)).andThen { case _ => resolution(file) }
+    } yield ret
+  }
+
+  private def getAllMetaList(key: String): Future[Try[Json]] = {
     Future.sequence(ALL_SERVICES.map(_.getMeta(key))).map { metaList =>
       val jsonList = for {
         metaEither <- metaList
@@ -34,7 +56,7 @@ object FsReadLogic {
     }
   }
 
-  def readFileFromServers(key: String): Future[Try[(File, MetaServer, Resolution)]] = {
+  private def readFileFromServers(key: String): Future[Try[(File, MetaServer, Resolution)]] = {
     getMostUpdatedServers(key).flatMap {
       case Success((metaList, fsList, resolution)) =>
         Future.sequence(fsList.map(_.getFile(key)))
@@ -48,7 +70,7 @@ object FsReadLogic {
     }
   }
 
-  def getMostUpdatedServers(key: String): Future[Try[(List[MetaServer], List[FileService], Resolution)]] = {
+  private def getMostUpdatedServers(key: String): Future[Try[(List[MetaServer], List[FileService], Resolution)]] = {
     val zipFsMeta = Future.sequence(ALL_SERVICES.map(_.getMeta(key)))
       .map(metaEither => ALL_SERVICES.zip(metaEither))
 
