@@ -32,4 +32,4 @@ docs/backup
 release*.sh
 tryScala.sc
 DistributedFileStore.md
-cache
+localFileCache
