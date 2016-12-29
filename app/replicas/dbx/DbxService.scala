@@ -47,8 +47,7 @@ object DbxService extends FileService {
 
   override def postFile(meta: ByteString, key: String, inputStream: InputStream): Future[Try[PostFileStatus]] = {
     lazy val saveIs = new java.io.SequenceInputStream(new ByteArrayInputStream(meta.toArray), inputStream)
-
-    def metadata = Future {
+    lazy val fileMetadata = Future {
       client.files().uploadBuilder(getPath(key))
         .withMode(WriteMode.OVERWRITE)
         .withClientModified(new Date(System.currentTimeMillis()))
@@ -56,7 +55,7 @@ object DbxService extends FileService {
     }
 
     val fut = for {
-      s <- metadata
+      s <- fileMetadata
       close <- Future(saveIs.close())
       l <- releaseLock(key)
     } yield Success(PostFileStatus("dropbox", success = true))

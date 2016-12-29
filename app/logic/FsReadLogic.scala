@@ -10,7 +10,7 @@ import io.circe.generic.auto._
 import io.circe.generic.semiauto._
 import io.circe.parser._
 import io.circe.syntax._
-import logic.FsResolutionLogic.{Resolution, attemptResolution}
+import logic.FsResolutionLogic.{Resolution, ResolutionPart, attemptResolution}
 import models.MetaServer
 import play.api.http.HttpEntity
 import play.api.mvc.{ResponseHeader, Result}
@@ -28,21 +28,14 @@ import scala.util.{Failure, Success, Try}
   */
 object FsReadLogic {
 
+  //-=-=-=-=-=-=-=-==-==-==-==-=-=-=-=-=-=-
+  //META
+  //-=-=-=-=-=-=-=-==-==-==-==-=-=-=-=-=-=-
   def resultMetaList(key: String): Future[Result] = {
     for {
       json <- FsReadLogic.getAllMetaList(key)
       body = HttpEntity.Strict(ByteString(json.get.noSpaces), Some("application/json"))
       ret <- Future(Result(ResponseHeader(200), body))
-    } yield ret
-  }
-
-  def resultFile(key: String): Future[Result] = {
-    for {
-      read <- FsReadLogic.readFileFromServers(key)
-      (file, meta, resolution) = read.get
-      stream = StreamConverters.fromInputStream(() => new FileInputStream(file))
-      body = HttpEntity.Streamed(stream, Some(meta.bytes), Some(meta.mime))
-      ret <- Future(Result(ResponseHeader(200), body)).andThen { case _ => resolution(file) }
     } yield ret
   }
 
@@ -56,21 +49,37 @@ object FsReadLogic {
     }
   }
 
+  //-=-=-=-=-=-=-=-==-==-==-==-=-=-=-=-=-=-
+  //FILE
+  //-=-=-=-=-=-=-=-==-==-==-==-=-=-=-=-=-=-
+  def resultFile(key: String): Future[Result] = {
+    for {
+      read <- FsReadLogic.readFileFromServers(key)
+      (file, meta, resolution) = read.get
+      stream = StreamConverters.fromInputStream(() => new FileInputStream(file))
+      body = HttpEntity.Streamed(stream, Some(meta.bytes), Some(meta.mime))
+      ret <- Future(Result(ResponseHeader(200), body)).andThen { case _ => resolution.apply() }
+    } yield ret
+  }
+
+
   private def readFileFromServers(key: String): Future[Try[(File, MetaServer, Resolution)]] = {
     getMostUpdatedServers(key).flatMap {
       case Success((metaList, fsList, resolution)) =>
         Future.sequence(fsList.map(_.getFile(key)))
-          .map { byteStream =>
-            byteStream.zip(metaList)
-              .withFilter { case (byte, meta) => byte.isSuccess }
-              .map { case (byte, meta) => Success(byte.get, meta, resolution) }
-              .head
+          .map { fileList =>
+            val l = fileList.zip(metaList)
+              .filter { case (file, meta) => file.isSuccess }
+              .map { case (file, meta) => Success(file.get, meta) }
+
+            val fileListSucc = l.collect { case (Success(s)) => s._1 }
+            l.head.map { e => (e._1, e._2, resolution(fileListSucc)) }
           }
       case Failure(err) => Future(Failure(err))
     }
   }
 
-  private def getMostUpdatedServers(key: String): Future[Try[(List[MetaServer], List[FileService], Resolution)]] = {
+  private def getMostUpdatedServers(key: String): Future[Try[(List[MetaServer], List[FileService], ResolutionPart)]] = {
     val zipFsMeta = Future.sequence(ALL_SERVICES.map(_.getMeta(key)))
       .map(metaEither => ALL_SERVICES.zip(metaEither))
 
@@ -80,12 +89,12 @@ object FsReadLogic {
       val mostUpdated = futTup
         .withFilter { case (fs, meta) => meta.isRight }
         .map { case (fs, meta) => (fs, meta.right.get) }
-        .foldLeft(Nil: List[(FileService, MetaServer)])(filterMostUpdated)
+        .foldLeft(Nil: List[(FileService, MetaServer)])(filterMostUpdatedService)
         .unzip
 
       mostUpdated match {
         case (fsList, metaList) if fsList.nonEmpty =>
-          val funcResolution = attemptResolution(key, metaList.head, fsList.head, ALL_SERVICES.filterNot(_.equals(fsList)))
+          val funcResolution = attemptResolution(key, metaList.head, ALL_SERVICES.filterNot(_.equals(fsList)))(_)
           Success((metaList, fsList, funcResolution))
         case (Nil, Nil) => Failure(new FsReadException("No servers available to get file."))
       }
@@ -93,7 +102,7 @@ object FsReadLogic {
   }
 
 
-  private[logic] def filterMostUpdated(list: List[(FileService, MetaServer)], nxt: (FileService, MetaServer)): List[(FileService, MetaServer)] = {
+  private[logic] def filterMostUpdatedService(list: List[(FileService, MetaServer)], nxt: (FileService, MetaServer)): List[(FileService, MetaServer)] = {
     val nxtTime = zoneFromString(nxt._2.uploadedAt)
     list match {
       case (_, meta) :: t if zoneFromString(meta.uploadedAt).isAfter(nxtTime) => list

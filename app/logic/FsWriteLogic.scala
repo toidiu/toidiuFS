@@ -34,12 +34,12 @@ object FsWriteLogic {
 
   private def checkConfigAcquireLock(key: String, mime: String, length: Long): Future[Try[List[FileService]]] = {
     for {
-      confFSList <- Future(FsWriteLogic.checkFsConfigConstraints(mime, length))
-      lockFSList <- FsWriteLogic.checkLockAndAcquireLock(key, confFSList.get)
+      confFSList <- Future(checkConfigConstraints(mime, length))
+      lockFSList <- acquireLock(key, confFSList.get)
     } yield lockFSList
   }
 
-  private def checkLockAndAcquireLock(key: String, list: List[FileService]): Future[Try[List[FileService]]] = {
+  private def acquireLock(key: String, list: List[FileService]): Future[Try[List[FileService]]] = {
     val futList = list.map(_.inspectOrCreateLock(key))
     Future.sequence(futList).map { lockList =>
       val availableFS = list.zip(lockList)
@@ -54,17 +54,15 @@ object FsWriteLogic {
           Success(fsList.map { fs => fs.acquireLock(key); fs })
         case fsList =>
           fsList.map(_.releaseLock(key))
-          val serversList = fsList.foldLeft("")((a, b) => a + b.getClass.getSimpleName)
+          val serversList = fsList.map(_.getClass.getSimpleName).mkString(", ")
           Failure(new FsMinReplicaException("We don't meet the min replicas due to locks/availability. Available servers: " + serversList))
       }
     }
   }
 
-  private def checkFsConfigConstraints(mime: String, length: Long): Try[List[FileService]] = {
-    //-----check: length, mime, enabled
+  private def checkConfigConstraints(mime: String, length: Long): Try[List[FileService]] = {
     val retList = ALL_SERVICES.filter(isFsConfigValid(mime, length))
 
-    //-----check: if we meet min replica
     retList match {
       case l if l.length >= repMin => Success(l)
       case l =>
@@ -76,7 +74,6 @@ object FsWriteLogic {
   private[logic] def isFsConfigValid(mime: String, length: Long): (FileService) => Boolean = { fs =>
     fs.isEnable && length < fs.maxLength && isMimeAllowed(mime, fs.isWhiteList, fs.mimeList)
   }
-
 
   private[logic] def isMimeAllowed(mime: String, isWhiteList: Boolean, list: List[String]): Boolean =
     if (isWhiteList) list.contains(mime) else !list.contains(mime)

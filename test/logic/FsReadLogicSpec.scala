@@ -1,6 +1,6 @@
 package logic
 
-import logic.FsReadLogic.filterMostUpdated
+import logic.FsReadLogic.filterMostUpdatedService
 import models.{MetaDetail, MetaServer}
 import org.specs2._
 import replicas.{FileService, MockService1, MockService2, MockService3}
@@ -31,7 +31,7 @@ class FsReadLogicSpec extends Specification {
     val list: List[(FileService, MetaServer)] = List(ms1)
     val nxt: (FileService, MetaServer) = ms2
 
-    val fil = filterMostUpdated(list, nxt)
+    val fil = filterMostUpdatedService(list, nxt)
     fil mustEqual List(ms2)
   }
 
@@ -44,7 +44,7 @@ class FsReadLogicSpec extends Specification {
     val list: List[(FileService, MetaServer)] = List(ms1)
     val nxt: (FileService, MetaServer) = ms2
 
-    val fil = filterMostUpdated(list, nxt)
+    val fil = filterMostUpdatedService(list, nxt)
     fil mustEqual List(ms1)
   }
 
@@ -60,7 +60,7 @@ class FsReadLogicSpec extends Specification {
     val list: List[(FileService, MetaServer)] = List(ms1, ms2)
     val nxt: (FileService, MetaServer) = ms3
 
-    val fil = filterMostUpdated(list, nxt)
+    val fil = filterMostUpdatedService(list, nxt)
     fil mustEqual List(ms1, ms2)
   }
 
@@ -76,7 +76,7 @@ class FsReadLogicSpec extends Specification {
 
     val list: List[(FileService, MetaServer)] = List(ms1, ms2, ms3, ms4)
 
-    val fil = list.foldLeft(Nil: List[(FileService, MetaServer)])(filterMostUpdated)
+    val fil = list.foldLeft(Nil: List[(FileService, MetaServer)])(filterMostUpdatedService)
 
     fil mustEqual List(ms3, ms2)
   }
