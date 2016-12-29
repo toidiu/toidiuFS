@@ -20,7 +20,7 @@ import utils.TimeUtils
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.language.postfixOps
-import scala.util.{Failure, Success, Try}
+import scala.util.{Failure, Success}
 
 /**
   * Created by toidiu on 11/2/16.
@@ -39,7 +39,7 @@ class MainController extends Controller {
       (file, meta, resolution) = read.get
       stream = StreamConverters.fromInputStream(() => new FileInputStream(file))
       body = HttpEntity.Streamed(stream, Some(meta.bytes), Some(meta.mime))
-      ret <- Future(Result(ResponseHeader(200), body)).andThen { case _ => resolution.apply() }
+      ret <- Future(Result(ResponseHeader(200), body)).andThen { case _ => resolution(file) }
     } yield ret
 
     fut.recover { case err => BadRequest(err.toString) }
