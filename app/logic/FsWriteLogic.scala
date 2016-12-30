@@ -36,33 +36,44 @@ object FsWriteLogic {
   private def checkConfigAcquireLock(key: String, mime: String, length: Long): Future[Try[List[FileService]]] = {
     for {
       confFSList <- Future(getConfigValidServices(mime, length))
-      lockFSList <- acquireLock(key, confFSList.get)
+      lockFSList <- getLockValidServices(key, confFSList.get)
     } yield lockFSList
   }
 
-  private def acquireLock(key: String, list: List[FileService]): Future[Try[List[FileService]]] = {
-    val futCheckLock = for {
-      inspectLock <- Future.sequence(list.map(_.inspectOrCreateLock(key)))
+  private def getLockValidServices(key: String, list: List[FileService]): Future[Try[List[FileService]]] = {
+    (for {
+      futFsList <- inspectLocks(key, list)
+      if futFsList.length >= repMin
+      fsList <- acquireAllLock(key, futFsList)
+      if fsList.isSuccess
+    } yield Success(fsList.get)) recover { case _ =>
+      Failure(new FsMinReplicaException("We don't meet the min replicas due to locks/availability."))
+    }
+  }
+
+  private def inspectLocks(key: String, fsList: List[FileService]) = {
+    for {
+      inspectLock <- Future.sequence(fsList.map(_.inspectOrCreateLock(key)))
     } yield for {
-      (fs, lock) <- list.zip(inspectLock)
+      (fs, lock) <- fsList.zip(inspectLock)
       if lock.isSuccess && !lock.get.locked
     } yield fs
+  }
 
+  private def acquireAllLock(key: String, list: List[FileService]): Future[Try[List[FileService]]] = {
     val futAcqLockList = for {
-      fsList <- futCheckLock
-      if fsList.length >= repMin
-    } yield for {
-      fs <- fsList
+      fs <- list
     } yield for {
       acqLock <- fs.acquireLock(key)
       if acqLock.isSuccess
     } yield fs
 
-    (for {
-      flatten <- futAcqLockList
-      fsList <- Future.sequence(flatten)
-    } yield Success(fsList)) recover { case _ =>
-      Failure(new FsMinReplicaException("We don't meet the min replicas due to locks/availability."))
+    Future.sequence(futAcqLockList).map{ fsList =>
+      if (fsList.length >= repMin) Success(fsList)
+      else {
+        fsList.foreach(_.releaseLock(key))
+        Failure(new FsMinReplicaException("We don't meet the min replicas because locks are already acquired."))
+      }
     }
   }
 
