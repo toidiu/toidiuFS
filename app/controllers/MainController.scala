@@ -6,7 +6,7 @@ import io.circe.generic.auto._
 import io.circe.generic.semiauto._
 import io.circe.parser._
 import io.circe.syntax._
-import logic.{FsReadLogic, FsWriteLogic}
+import logic.{FsMetaLogic, FsReadFileLogic, FsWriteFileLogic}
 import play.api.mvc.{Action, Controller, Result}
 import replicas.FileService
 
@@ -27,12 +27,12 @@ class MainController extends Controller {
   def index = Action.async(Future(Ok("Hi")))
 
   def getFile(key: String) = Action.async { req =>
-    val fut: Future[Result] = FsReadLogic.resultFile(key)
+    val fut: Future[Result] = FsReadFileLogic.resultFile(key)
     fut.recover { case err => BadRequest(err.toString) }
   }
 
   def getMeta(key: String) = Action.async { req =>
-    val fut = FsReadLogic.resultMetaList(key)
+    val fut = FsMetaLogic.resultMetaList(key)
     fut.recover { case err => BadRequest(err.toString) }
   }
 
@@ -41,7 +41,7 @@ class MainController extends Controller {
     optMime match {
       case Success(mime) =>
         val length = req.body.file.length()
-        val fut = FsWriteLogic.resultPostFile(key, mime, length, req.body)
+        val fut = FsWriteFileLogic.resultPostFile(key, mime, length, req.body)
         fut.recover { case e => BadRequest(e.getMessage) }
       case Failure(_) => Future(BadRequest("Error: No Mime\n"))
     }

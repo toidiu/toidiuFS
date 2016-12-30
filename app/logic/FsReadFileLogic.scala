@@ -26,35 +26,11 @@ import scala.util.{Failure, Success, Try}
 /**
   * Created by toidiu on 11/24/16.
   */
-object FsReadLogic {
+object FsReadFileLogic {
 
-  //-=-=-=-=-=-=-=-==-==-==-==-=-=-=-=-=-=-
-  //META
-  //-=-=-=-=-=-=-=-==-==-==-==-=-=-=-=-=-=-
-  def resultMetaList(key: String): Future[Result] = {
-    for {
-      json <- FsReadLogic.getAllMetaList(key)
-      body = HttpEntity.Strict(ByteString(json.get.noSpaces), Some("application/json"))
-      ret <- Future(Result(ResponseHeader(200), body))
-    } yield ret
-  }
-
-  private def getAllMetaList(key: String): Future[Try[Json]] = {
-    Future.sequence(ALL_SERVICES.map(_.getMeta(key))).map { metaList =>
-      val jsonList = for {
-        metaEither <- metaList
-        json <- List(if (metaEither.isRight) metaEither.right.get.asJson else metaEither.left.get.asJson)
-      } yield json
-      Success(jsonList.asJson)
-    }
-  }
-
-  //-=-=-=-=-=-=-=-==-==-==-==-=-=-=-=-=-=-
-  //FILE
-  //-=-=-=-=-=-=-=-==-==-==-==-=-=-=-=-=-=-
   def resultFile(key: String): Future[Result] = {
     for {
-      read <- FsReadLogic.readFileFromServers(key)
+      read <- readFileFromServers(key)
       (file, meta, resolution) = read.get
       stream = StreamConverters.fromInputStream(() => new FileInputStream(file))
       body = HttpEntity.Streamed(stream, Some(meta.bytes), Some(meta.mime))

@@ -28,7 +28,7 @@ object FsResolutionLogic {
   type Resolution = () => Future[Unit]
 
   def attemptResolution(key: String, meta: MetaServer, needsRes: List[FileService])(fileList: List[File]): Resolution = () => {
-    val isConfigValid = FsWriteLogic.isFsConfigValid(meta.mime, meta.bytes)
+    val isConfigValid = FsWriteFileLogic.isFsConfigValid(meta.mime, meta.bytes)
 
     val copyFileToServicePart = copyFileToService(key, meta, fileList.head)
     val listFut = needsRes

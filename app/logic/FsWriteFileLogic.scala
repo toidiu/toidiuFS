@@ -17,7 +17,7 @@ import scala.util.{Failure, Success, Try}
 /**
   * Created by toidiu on 11/24/16.
   */
-object FsWriteLogic {
+object FsWriteFileLogic {
 
   def resultPostFile(key: String, mime: String, length: Long, tempFile: TemporaryFile): Future[Result] = {
     checkConfigAcquireLock(key, mime, length).flatMap {

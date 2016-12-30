@@ -1,6 +1,6 @@
 package logic
 
-import logic.FsReadLogic.filterMostUpdatedService
+import logic.FsReadFileLogic.filterMostUpdatedService
 import models.{MetaDetail, MetaServer}
 import org.specs2._
 import replicas.{FileService, MockService1, MockService2, MockService3}

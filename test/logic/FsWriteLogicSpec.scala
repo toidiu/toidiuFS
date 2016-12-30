@@ -1,6 +1,6 @@
 package logic
 
-import logic.FsWriteLogic._
+import logic.FsWriteFileLogic._
 import org.specs2._
 import replicas._
 
