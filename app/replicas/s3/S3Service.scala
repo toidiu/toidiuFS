@@ -7,7 +7,7 @@ import java.util
 import akka.util.ByteString
 import cache.CacheUtils
 import com.amazonaws.auth.BasicAWSCredentials
-import com.amazonaws.services.s3.model.{AmazonS3Exception, ObjectMetadata}
+import com.amazonaws.services.s3.model.{AmazonS3Exception, Bucket, ObjectMetadata}
 import com.amazonaws.services.s3.{AmazonS3, AmazonS3Client}
 import io.circe._
 import io.circe.generic.JsonCodec
@@ -17,7 +17,7 @@ import io.circe.parser._
 import io.circe.syntax._
 import models.{FSLock, MetaDetail, MetaServer}
 import org.apache.commons.io.IOUtils
-import replicas.{ReplicaUtils, FileService}
+import replicas.{FileService, ReplicaUtils}
 import utils.ErrorUtils.MetaError
 import utils.StatusUtils.PostFileStatus
 import utils.TimeUtils
@@ -33,17 +33,13 @@ object S3Service extends FileService {
 
   lazy val cred = new BasicAWSCredentials(ReplicaUtils.s3AccessKey, ReplicaUtils.s3SecretKey)
   lazy val client: AmazonS3 = new AmazonS3Client(cred)
-  lazy val bucket = client.createBucket(ReplicaUtils.s3Bucket)
-
-  private val META_OBJ_KEY: String = "meta"
-  private val LOCK_OBJ_KEY: String = "lock"
-
-  def getLockKey(key: String) = "lock/" + key
-
+  lazy val bucket: Bucket = client.createBucket(ReplicaUtils.s3Bucket)
+  override val serviceName: String = "s3"
   override val isEnable: Boolean = ReplicaUtils.s3Enable
   override val isWhiteList: Boolean = ReplicaUtils.s3IsWhiteList
   override val mimeList: List[String] = ReplicaUtils.s3MimeList
   override val maxLength: Long = ReplicaUtils.s3MaxLength
+  private val META_OBJ_KEY: String = "meta"
 
   override def postFile(meta: ByteString, key: String, inputStream: InputStream): Future[Try[PostFileStatus]] = {
     val metaObj: ObjectMetadata = new ObjectMetadata()
@@ -54,12 +50,16 @@ object S3Service extends FileService {
     val fut = for {
       s <- Future(client.putObject(bucket.getName, key, inputStream, metaObj))
       l <- releaseLock(key)
-    } yield Success(PostFileStatus("s3", success = true))
+    } yield Success(PostFileStatus(serviceName, success = true))
 
     fut.recover { case e: Exception =>
       releaseLock(key)
       Failure(e)
     }
+  }
+
+  override def releaseLock(key: String): Future[Try[FSLock]] = {
+    updateLock(key, FSLock(locked = false, TimeUtils.zoneAsString))
   }
 
   override def getFile(key: String): Future[Try[File]] = {
@@ -68,7 +68,6 @@ object S3Service extends FileService {
       stream <- Future(op.getObjectContent)
       file <- CacheUtils.saveCachedFile(key, stream)
     } yield file
-
   }
 
   override def getMeta(key: String): Future[Either[MetaError, MetaServer]] = {
@@ -77,21 +76,32 @@ object S3Service extends FileService {
         val str = client.getObjectMetadata(bucket.getName, key).getUserMetaDataOf(META_OBJ_KEY)
         decode[MetaServer](str) match {
           case Right(s) => Right(s)
-          case Left(e) => Left(MetaError("s3", e.toString))
+          case Left(e) => Left(MetaError(serviceName, e.toString))
         }
       } catch {
-        case e: Exception => Left(MetaError("s3", e.toString))
+        case e: Exception => Left(MetaError(serviceName, e.toString))
       }
     }
   }
 
-  def buildS3Meta(meta: MetaServer): ByteString = ByteString(meta.asJson.noSpaces)
-
   override def buildMetaBytes(bytes: Long, mime: String,
                               uploadedAt: String, key: String): ByteString = {
     val detail: MetaDetail = MetaDetail(None, Some(ReplicaUtils.s3Bucket), Some(key))
-    val jsonString = MetaServer(bytes, mime, uploadedAt, "s3", detail).asJson.noSpaces
+    val jsonString = MetaServer(bytes, mime, uploadedAt, serviceName, detail).asJson.noSpaces
     ByteString(jsonString)
+  }
+
+  override def inspectOrCreateLock(key: String): Future[Try[FSLock]] = {
+    Future {
+      val op = client.getObject(bucket.getName, getLockKey(key))
+      val writer = new StringWriter()
+      IOUtils.copy(op.getObjectContent, writer, StandardCharsets.UTF_8)
+      val eitherJson = decode[FSLock](writer.toString)
+      eitherJson match {
+        case Right(fsLock) => Success(fsLock)
+        case Left(err) => Failure(new Exception(err))
+      }
+    }.recoverWith { case _: AmazonS3Exception => createLock(key) }
   }
 
   //-=-=-=-=-=-=-=-==-==-==-==-=-=-=-=-=-=-
@@ -101,25 +111,8 @@ object S3Service extends FileService {
     updateLock(key, FSLock(locked = false, TimeUtils.zoneAsString))
   }
 
-  override def inspectOrCreateLock(key: String): Future[Try[FSLock]] = {
-    Future {
-      val op = client.getObject(bucket.getName, getLockKey(key))
-      val writer: StringWriter = new StringWriter()
-      IOUtils.copy(op.getObjectContent, writer, StandardCharsets.UTF_8)
-      val eitherJson = decode[FSLock](writer.toString)
-      eitherJson match {
-        case Right(fsLock) => Success(fsLock)
-        case Left(err) => Failure(new Exception(err))
-      }
-    }.recoverWith { case e: AmazonS3Exception => createLock(key) }
-  }
-
   override def acquireLock(key: String): Future[Try[FSLock]] = {
     updateLock(key, FSLock(locked = true, TimeUtils.zoneAsString))
-  }
-
-  override def releaseLock(key: String): Future[Try[FSLock]] = {
-    updateLock(key, FSLock(locked = false, TimeUtils.zoneAsString))
   }
 
   private def updateLock(key: String, ret: FSLock): Future[Try[FSLock]] = {
@@ -129,6 +122,8 @@ object S3Service extends FileService {
       Success(ret)
     }
   }
+
+  def getLockKey(key: String) = "lock/" + key
 
 }
 

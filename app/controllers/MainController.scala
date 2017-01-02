@@ -1,5 +1,8 @@
 package controllers
 
+import akka.actor.ActorSystem
+import akka.stream.ActorMaterializer
+import akka.util.Timeout
 import io.circe._
 import io.circe.generic.JsonCodec
 import io.circe.generic.auto._
@@ -20,9 +23,9 @@ import scala.util.{Failure, Success, Try}
   */
 
 class MainController extends Controller {
-  implicit val t = FileService.timeout
-  implicit val s = FileService.system
-  implicit val m = FileService.materializer
+  implicit val t: Timeout = FileService.timeout
+  implicit val s: ActorSystem = FileService.system
+  implicit val m: ActorMaterializer = FileService.materializer
 
   def index = Action.async(Future(Ok("Hi")))
 

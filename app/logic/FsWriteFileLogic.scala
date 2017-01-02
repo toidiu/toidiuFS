@@ -68,7 +68,7 @@ object FsWriteFileLogic {
       if acqLock.isSuccess
     } yield fs
 
-    Future.sequence(futAcqLockList).map{ fsList =>
+    Future.sequence(futAcqLockList).map { fsList =>
       if (fsList.length >= repMin) Success(fsList)
       else {
         fsList.foreach(_.releaseLock(key))

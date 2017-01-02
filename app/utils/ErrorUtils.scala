@@ -5,9 +5,9 @@ package utils
   */
 object ErrorUtils {
 
-  final class FsReadException(msg:String) extends Exception(msg)
+  final class FsReadException(msg: String) extends Exception(msg)
 
-  final class FsMinReplicaException(msg:String) extends Exception(msg)
+  final class FsMinReplicaException(msg: String) extends Exception(msg)
 
   case class MetaError(backend: String, error: String)
 

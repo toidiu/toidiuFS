@@ -20,9 +20,6 @@ import scala.util.Try
   * Created by toidiu on 11/27/16.
   */
 object FsResolutionLogic {
-  implicit val t = FileService.timeout
-  implicit val s = FileService.system
-  implicit val m = FileService.materializer
 
   type ResolutionPart = List[File] => Resolution
   type Resolution = () => Future[Unit]

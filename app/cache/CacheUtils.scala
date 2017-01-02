@@ -18,6 +18,7 @@ object CacheUtils {
   val cacheFolder = new File(CACHE_FOLDER)
   cacheFolder.mkdirs()
 
+  //Currently there is no cache functionality. The file is deleted after each request.
   def saveCachedFile(key: String, in: InputStream): Future[Try[File]] = {
     val f = new File(cacheFolder, key + "_" + System.currentTimeMillis() + UUID.randomUUID())
     val out = new FileOutputStream(f)

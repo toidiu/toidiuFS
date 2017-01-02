@@ -17,7 +17,7 @@ import io.circe.generic.semiauto._
 import io.circe.parser._
 import io.circe.syntax._
 import models.{FSLock, MetaDetail, MetaServer}
-import replicas.{ReplicaUtils, FileService}
+import replicas.{FileService, ReplicaUtils}
 import utils.ErrorUtils.MetaError
 import utils.StatusUtils.PostFileStatus
 import utils.TimeUtils
@@ -35,11 +35,7 @@ object DbxService extends FileService {
 
   lazy val config: DbxRequestConfig = DbxRequestConfig.newBuilder("toidiuFS").withUserLocale("en_US").build()
   lazy val client: DbxClientV2 = new DbxClientV2(config, ReplicaUtils.dbxToken)
-
-  def getPath(key: String): String = ReplicaUtils.dbxPath + key
-
-  def getLockPath(key: String): String = "/lock/" + key + ".lock"
-
+  override val serviceName: String = "dropbox"
   override val isEnable: Boolean = ReplicaUtils.dbxEnable
   override val isWhiteList: Boolean = ReplicaUtils.dbxIsWhiteList
   override val mimeList: List[String] = ReplicaUtils.dbxMimeList
@@ -48,17 +44,17 @@ object DbxService extends FileService {
   override def postFile(meta: ByteString, key: String, inputStream: InputStream): Future[Try[PostFileStatus]] = {
     lazy val saveIs = new java.io.SequenceInputStream(new ByteArrayInputStream(meta.toArray), inputStream)
     lazy val fileMetadata = Future {
-      client.files().uploadBuilder(getPath(key))
-        .withMode(WriteMode.OVERWRITE)
+      client.files().uploadBuilder(getPath(key)).withMode(WriteMode.OVERWRITE)
         .withClientModified(new Date(System.currentTimeMillis()))
         .uploadAndFinish(saveIs)
     }
 
+    //noinspection ScalaUnusedSymbol
     val fut = for {
       s <- fileMetadata
       close <- Future(saveIs.close())
       l <- releaseLock(key)
-    } yield Success(PostFileStatus("dropbox", success = true))
+    } yield Success(PostFileStatus(serviceName, success = true))
 
     fut.recover { case e: Exception =>
       releaseLock(key)
@@ -66,14 +62,19 @@ object DbxService extends FileService {
     }
   }
 
+  def getPath(key: String): String = ReplicaUtils.dbxPath + key
+
+  override def releaseLock(key: String): Future[Try[FSLock]] = {
+    updateLock(key, FSLock(locked = false, TimeUtils.zoneAsString))
+  }
+
   override def getFile(key: String): Future[Try[File]] = {
-    var dropOne = true
+    //noinspection ScalaUnusedSymbol
     for {
       stream <- Future(client.files().download(getPath(key)).getInputStream)
       trim = Future(stream.skip(FileService.bufferByte.toLong))
       file <- CacheUtils.saveCachedFile(key, stream)
     } yield file
-
   }
 
   override def getMeta(key: String): Future[Either[MetaError, MetaServer]] = {
@@ -85,11 +86,11 @@ object DbxService extends FileService {
         stream.read(meta)
         val str = ByteString(meta.filterNot(_ == 0)).utf8String
         decode[MetaServer](str) match {
-          case Right(s) => Right(s)
-          case Left(e) => Left(MetaError("dropbox", e.toString))
+          case Right(metaServer) => Right(metaServer)
+          case Left(e) => Left(MetaError(serviceName, e.toString))
         }
       } catch {
-        case e: Exception => Left(MetaError("dropbox", e.toString))
+        case e: Exception => Left(MetaError(serviceName, e.toString))
       }
       finally {
         if (stream != null)
@@ -101,16 +102,9 @@ object DbxService extends FileService {
   override def buildMetaBytes(bytes: Long, mime: String,
                               uploadedAt: String, key: String): ByteString = {
     val detail: MetaDetail = MetaDetail(Some(DbxService.getPath(key)))
-    val jsonString = MetaServer(bytes, mime, uploadedAt, "dropbox", detail).asJson.noSpaces
+    val jsonString = MetaServer(bytes, mime, uploadedAt, serviceName, detail).asJson.noSpaces
     val metaByteString = ByteString(jsonString)
     metaByteString ++ ByteString.fromArray(new Array[Byte](FileService.bufferByte - metaByteString.size))
-  }
-
-  //-=-=-=-=-=-=-=-==-==-==-==-=-=-=-=-=-=-
-  //Lock
-  //-=-=-=-=-=-=-=-==-==-==-==-=-=-=-=-=-=-
-  override def createLock(key: String): Future[Try[FSLock]] = {
-    updateLock(key, FSLock(locked = false, TimeUtils.zoneAsString))
   }
 
   override def inspectOrCreateLock(key: String): Future[Try[FSLock]] = {
@@ -124,14 +118,15 @@ object DbxService extends FileService {
         case Right(fsLock) => Success(fsLock)
         case Left(err) => Failure(new Exception(err))
       }
-    }.recoverWith { case e: DownloadErrorException => createLock(key) }
+    }.recoverWith { case _: DownloadErrorException => createLock(key) }
   }
 
-  override def acquireLock(key: String): Future[Try[FSLock]] = {
-    updateLock(key, FSLock(locked = true, TimeUtils.zoneAsString))
-  }
+  def getLockPath(key: String): String = "/lock/" + key + ".lock"
 
-  override def releaseLock(key: String): Future[Try[FSLock]] = {
+  //-=-=-=-=-=-=-=-==-==-==-==-=-=-=-=-=-=-
+  //Lock
+  //-=-=-=-=-=-=-=-==-==-==-==-=-=-=-=-=-=-
+  override def createLock(key: String): Future[Try[FSLock]] = {
     updateLock(key, FSLock(locked = false, TimeUtils.zoneAsString))
   }
 
@@ -147,6 +142,10 @@ object DbxService extends FileService {
       lockIs.close()
       Success(ret)
     }
+  }
+
+  override def acquireLock(key: String): Future[Try[FSLock]] = {
+    updateLock(key, FSLock(locked = true, TimeUtils.zoneAsString))
   }
 }
 

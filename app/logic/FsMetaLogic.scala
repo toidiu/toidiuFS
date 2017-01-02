@@ -1,8 +1,5 @@
 package logic
 
-import java.io.{File, FileInputStream}
-
-import akka.stream.scaladsl.StreamConverters
 import akka.util.ByteString
 import io.circe._
 import io.circe.generic.JsonCodec
@@ -10,18 +7,13 @@ import io.circe.generic.auto._
 import io.circe.generic.semiauto._
 import io.circe.parser._
 import io.circe.syntax._
-import logic.FsResolutionLogic.{Resolution, ResolutionPart, attemptResolution}
-import models.MetaServer
 import play.api.http.HttpEntity
 import play.api.mvc.{ResponseHeader, Result}
-import replicas.FileService
 import utils.AppUtils.ALL_SERVICES
-import utils.ErrorUtils.FsReadException
-import utils.TimeUtils.zoneFromString
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
-import scala.util.{Failure, Success, Try}
+import scala.util.{Success, Try}
 
 /**
   * Created by toidiu on 11/24/16.
