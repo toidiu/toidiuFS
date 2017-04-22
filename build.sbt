@@ -50,9 +50,15 @@ version in Docker := version.value
 
 import com.amazonaws.regions.{Region, Regions}
 
-region in ecr := Region.getRegion(Regions.US_EAST_1)
-repositoryName in ecr := (packageName in Docker).value
+enablePlugins(EcrPlugin)
+region           in ecr := Region.getRegion(Regions.US_EAST_1)
+repositoryName   in ecr := (packageName in Docker).value
 localDockerImage in ecr := (packageName in Docker).value + ":" + (version in Docker).value
+version          in ecr := (version in Docker).value
 
-push in ecr <<= (push in ecr) dependsOn (publishLocal in Docker)
+// Create the repository before authentication takes place (optional)
+login in ecr <<= (login in ecr) dependsOn (createRepository in ecr)
+
+// Authenticate and publish a local Docker image before pushing to ECR
+push in ecr <<= (push in ecr) dependsOn (publishLocal in Docker, login in ecr)
 
