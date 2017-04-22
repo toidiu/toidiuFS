@@ -1,6 +1,6 @@
 ## Config
 
-- make a copy of `conf/account_sample.conf` to `conf/account.conf`
+- make a copy of `conf/account_sample.conf` to `conf/secret.conf` (added to .gitignore)
 - fill in your s3 and dropbox info
 - change config settings (replication min, byte length, whitelist) in application.conf
 - start the server with `sbt run`

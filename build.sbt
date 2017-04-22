@@ -1,4 +1,7 @@
-name := """toidiuFS"""
+enablePlugins(JavaAppPackaging)
+
+
+name := "toidiufs"
 
 version := "0.0.1"
 
@@ -34,7 +37,22 @@ libraryDependencies ++= {
     , "org.specs2" %% "specs2-junit" % spec2V % "test"
   )
 
-
 }
 
-resolvers += Resolver.sonatypeRepo("snapshots")
+resolvers ++= Seq(Resolver.sonatypeRepo("snapshots"))
+
+
+
+//docker
+dockerRepository := Some("toidiu")
+packageName in Docker := dockerRepository.value.map(_ + "/").getOrElse("") + name.value
+version in Docker := version.value
+
+import com.amazonaws.regions.{Region, Regions}
+
+region in ecr := Region.getRegion(Regions.US_EAST_1)
+repositoryName in ecr := (packageName in Docker).value
+localDockerImage in ecr := (packageName in Docker).value + ":" + (version in Docker).value
+
+push in ecr <<= (push in ecr) dependsOn (publishLocal in Docker)
+
