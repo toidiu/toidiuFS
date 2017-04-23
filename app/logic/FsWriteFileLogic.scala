@@ -94,7 +94,7 @@ object FsWriteFileLogic {
     if (isWhiteList)
       list.foldLeft(false)((bool, listEntry) => bool || mime.contains(listEntry))
     else
-      list.foldLeft(false)((bool, listEntry) => bool && !mime.contains(listEntry))
+      list.foldLeft(true)((bool, listEntry) => bool && !mime.contains(listEntry))
   }
 
 }

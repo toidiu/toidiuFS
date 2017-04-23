@@ -29,9 +29,6 @@ libraryDependencies ++= {
     , "io.circe" %% "circe-core" % circeV
     , "io.circe" %% "circe-generic" % circeV
     , "io.circe" %% "circe-parser" % circeV
-    //    , "io.circe" %% "circe-jawn"
-
-//    , "commons-io" % "commons-io" % "2.4"
 
     , "org.specs2" %% "specs2-core" % spec2V % "test"
     , "org.specs2" %% "specs2-junit" % spec2V % "test"
