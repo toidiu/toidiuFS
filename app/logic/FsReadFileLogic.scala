@@ -9,7 +9,7 @@ import io.circe.generic.auto._
 import io.circe.generic.semiauto._
 import io.circe.parser._
 import io.circe.syntax._
-import logic.FsResolutionLogic.{Resolution, ResolutionPart, attemptResolution}
+import logic.FsResolutionLogic.{Resolution, ResolutionPart, partResolution}
 import models.MetaServer
 import play.api.http.HttpEntity
 import play.api.mvc.Results.BadRequest
@@ -21,7 +21,7 @@ import utils.TimeUtils.zoneFromString
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
-import scala.util.{Success, Try}
+import scala.util.{Failure, Success, Try}
 
 /**
   * Created by toidiu on 11/24/16.
@@ -30,8 +30,7 @@ object FsReadFileLogic {
 
   def resultFile(key: String): Future[Result] = {
     val fut = for {
-      read <- readFileFromServers(key)
-      (file, meta, resolution) = read
+      (file, meta, resolution) <- readFileFromServers(key)
       stream = StreamConverters.fromInputStream(() => new FileInputStream(file))
       body = HttpEntity.Streamed(stream, Some(meta.bytes), Some(meta.mime))
       ret <- Future(Result(ResponseHeader(200), body)).andThen { case _ => resolution.apply() }
@@ -68,9 +67,10 @@ object FsReadFileLogic {
 
     for {
       zipped <- zipFsMeta
-      updateFs <- Future(getUpdatedFs(key, zipped))
-      fsAndRes <- Future(buildResolution(key, updateFs))
-    } yield fsAndRes
+      (updatedFs, updatedMeta) <- Future(getUpdatedFs(key, zipped))
+      resolutionPart <- Future(buildResolution(key, updatedFs, updatedMeta))
+    } yield Success(updatedMeta, updatedFs, resolutionPart)
+
   }
 
   private def getUpdatedFs(key: String, futTup: List[(FileService, Either[MetaError, MetaServer])]) = {
@@ -94,12 +94,15 @@ object FsReadFileLogic {
     }
   }
 
-  private def buildResolution(key: String, mostUpdated: (List[FileService], List[MetaServer])): Try[(List[MetaServer], List[FileService], ResolutionPart)] = {
-    mostUpdated match {
-      case (fsList, metaList) if fsList.nonEmpty =>
-        val funcResolution = attemptResolution(key, metaList.head, ALL_SERVICES.filterNot(_.equals(fsList)))(_)
-        Success((metaList, fsList, funcResolution))
-    }
+  private def buildResolution(key: String, updatedFs: List[FileService], updatedMeta: List[MetaServer]): ResolutionPart = {
+        val notUpToDate = ALL_SERVICES.filter(fs => !updatedFs.contains(fs))
+
+        println("-=-=-")
+        println(notUpToDate)
+        val funcResolution = partResolution(key, updatedMeta.head, notUpToDate)
+        println("-=-=-")
+        println(funcResolution)
+        funcResolution
   }
 
 }

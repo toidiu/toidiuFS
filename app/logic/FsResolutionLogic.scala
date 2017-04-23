@@ -24,7 +24,11 @@ object FsResolutionLogic {
   type ResolutionPart = List[File] => Resolution
   type Resolution = () => Future[Unit]
 
-  def attemptResolution(key: String, meta: MetaServer, needsRes: List[FileService])(fileList: List[File]): Resolution = () => {
+  def partResolution(key: String, meta: MetaServer, needsRes: List[FileService]): ResolutionPart = {
+    attemptResolution(key, meta, needsRes)(_)
+  }
+
+  private def attemptResolution(key: String, meta: MetaServer, needsRes: List[FileService])(fileList: List[File]): Resolution = () => {
     val isConfigValid = FsWriteFileLogic.isFsConfigValid(meta.mime, meta.bytes)
 
     val copyFileToServicePart = copyFileToService(key, meta, fileList.head)
@@ -36,7 +40,7 @@ object FsResolutionLogic {
 
   private def copyFileToService(key: String, meta: MetaServer, file: File) = { fs: FileService =>
     val is = new FileInputStream(file)
-    val metaBytes = fs.buildMetaBytes(meta.bytes, meta.mime, TimeUtils.zoneAsString, key)
+    val metaBytes = fs.buildMetaBytes(meta.bytes, meta.mime, meta.uploadedAt, key)
     fs.postFile(metaBytes, key, is).map(_ => Try(is.close()))
   }
 

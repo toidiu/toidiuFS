@@ -10,7 +10,7 @@ import io.circe.generic.semiauto._
 import io.circe.parser._
 import io.circe.syntax._
 import logic.{FsMetaLogic, FsReadFileLogic, FsWriteFileLogic}
-import play.api.mvc.{Action, Controller, Result}
+import play.api.mvc._
 import replicas.FileService
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -29,12 +29,12 @@ class MainController extends Controller {
 
   def index = Action.async(Future(Ok("toidiufs")))
 
-  def getFile(key: String) = Action.async { req =>
+  def getFile(key: String) = Action.async { req: Request[AnyContent] =>
     val fut: Future[Result] = FsReadFileLogic.resultFile(key)
     fut.recover { case err => BadRequest(err.toString) }
   }
 
-  def getMeta(key: String) = Action.async { req =>
+  def getMeta(key: String) = Action.async { req: Request[AnyContent] =>
     val fut = FsMetaLogic.resultMetaList(key)
     fut.recover { case err => BadRequest(err.toString) }
   }
