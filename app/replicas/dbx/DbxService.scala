@@ -73,7 +73,7 @@ object DbxService extends FileService {
     for {
       stream <- Future(client.files().download(getPath(key)).getInputStream)
       trim = Future(stream.skip(FileService.bufferByte.toLong))
-      file <- CacheUtils.saveCachedFile(key, stream)
+      file <- CacheUtils.saveCachedFile(key, "dbx", stream)
     } yield file
   }
 

@@ -10,7 +10,6 @@ import io.circe.parser._
 import io.circe.syntax._
 import models.MetaServer
 import replicas.FileService
-import utils.TimeUtils
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
