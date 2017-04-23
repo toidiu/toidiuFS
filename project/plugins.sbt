@@ -1,5 +1,5 @@
 // The Play plugin
-addSbtPlugin("com.typesafe.play" % "sbt-plugin" % "2.5.9")
+addSbtPlugin("com.typesafe.play" % "sbt-plugin" % "2.6.0-M4")
 
 //addSbtPlugin("com.github.gseitz" % "sbt-release" % "1.0.4")
 //addSbtPlugin("se.marcuslonnberg" % "sbt-docker" % "1.4.1")

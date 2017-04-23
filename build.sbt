@@ -7,17 +7,17 @@ version := "0.0.1"
 
 lazy val toidiufs = (project in file(".")).enablePlugins(PlayScala)
 
-scalaVersion := "2.11.8"
+scalaVersion := "2.12.2"
 
 
 libraryDependencies ++= {
 
-  val akkaV = "2.4.10"
+  val akkaV = "2.0.5"
   val circeV = "0.6.1"
   val s3V = "1.11.55"
   val DbxV = "2.1.2"
   val commonsV = "2.5"
-  val spec2V = "3.8.5"
+  val spec2V = "3.8.9"
   Seq(
     "com.typesafe.akka" %% "akka-slf4j" % akkaV
     , "com.typesafe.akka" %% "akka-stream" % akkaV
