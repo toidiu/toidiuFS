@@ -27,7 +27,7 @@ class MainController extends Controller {
   implicit val s: ActorSystem = FileService.system
   implicit val m: ActorMaterializer = FileService.materializer
 
-  def index = Action.async(Future(Ok("Hi")))
+  def index = Action.async(Future(Ok("toidiufs")))
 
   def getFile(key: String) = Action.async { req =>
     val fut: Future[Result] = FsReadFileLogic.resultFile(key)
@@ -46,7 +46,7 @@ class MainController extends Controller {
         val length = req.body.file.length()
         val fut = FsWriteFileLogic.resultPostFile(key, mime, length, req.body)
         fut.recover { case e => BadRequest(e.getMessage) }
-      case Failure(_) => Future(BadRequest("Error: No Mime\n"))
+      case Failure(_) => Future(BadRequest("Error, specify the mime: Content-Type\n"))
     }
   }
 

@@ -7,9 +7,11 @@ import io.circe.generic.auto._
 import io.circe.generic.semiauto._
 import io.circe.parser._
 import io.circe.syntax._
+import models.MetaServer
 import play.api.http.HttpEntity
 import play.api.mvc.{ResponseHeader, Result}
 import utils.AppUtils.ALL_SERVICES
+import utils.ErrorUtils.MetaError
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -32,10 +34,14 @@ object FsMetaLogic {
   }
 
   private def getAllMetaList(key: String): Future[Try[Json]] = {
+    def _resolveMetaJson(metaEither: Either[MetaError, MetaServer]): List[Json] = {
+      List(if (metaEither.isRight) metaEither.right.get.asJson else metaEither.left.get.asJson)
+    }
+
     Future.sequence(ALL_SERVICES.map(_.getMeta(key))).map { metaList =>
       val jsonList = for {
         metaEither <- metaList
-        json <- List(if (metaEither.isRight) metaEither.right.get.asJson else metaEither.left.get.asJson)
+        json <- _resolveMetaJson(metaEither)
       } yield json
       Success(jsonList.asJson)
     }

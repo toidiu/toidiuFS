@@ -75,7 +75,7 @@ object S3Service extends FileService {
       try {
         val str = client.getObjectMetadata(bucket.getName, key).getUserMetaDataOf(META_OBJ_KEY)
         decode[MetaServer](str) match {
-          case Right(s) => Right(s)
+          case Right(meta) => Right(meta)
           case Left(e) => Left(MetaError(serviceName, e.toString))
         }
       } catch {
@@ -91,6 +91,9 @@ object S3Service extends FileService {
     ByteString(jsonString)
   }
 
+  //-=-=-=-=-=-=-=-==-==-==-==-=-=-=-=-=-=-
+  //Lock
+  //-=-=-=-=-=-=-=-==-==-==-==-=-=-=-=-=-=-
   override def inspectOrCreateLock(key: String): Future[Try[FSLock]] = {
     Future {
       val op = client.getObject(bucket.getName, getLockKey(key))
@@ -104,9 +107,6 @@ object S3Service extends FileService {
     }.recoverWith { case _: AmazonS3Exception => createLock(key) }
   }
 
-  //-=-=-=-=-=-=-=-==-==-==-==-=-=-=-=-=-=-
-  //Lock
-  //-=-=-=-=-=-=-=-==-==-==-==-=-=-=-=-=-=-
   override def createLock(key: String): Future[Try[FSLock]] = {
     updateLock(key, FSLock(locked = false, TimeUtils.zoneAsString))
   }
@@ -123,7 +123,7 @@ object S3Service extends FileService {
     }
   }
 
-  def getLockKey(key: String) = "lock/" + key
+  private def getLockKey(key: String) = "lock/" + key
 
 }
 
