@@ -3,21 +3,21 @@ enablePlugins(JavaAppPackaging)
 
 name := "toidiufs"
 
-version := "0.0.1"
+version := "0.0.2"
 
 lazy val toidiufs = (project in file(".")).enablePlugins(PlayScala)
 
-scalaVersion := "2.11.8"
+scalaVersion := "2.12.2"
 
 
 libraryDependencies ++= {
 
-  val akkaV = "2.4.10"
-  val circeV = "0.6.1"
-  val s3V = "1.11.55"
-  val DbxV = "2.1.2"
+  val akkaV = "2.5.0"
+  val circeV = "0.7.1"
+  val s3V = "1.11.123"
+  val DbxV = "3.0.2"
   val commonsV = "2.5"
-  val spec2V = "3.8.5"
+  val spec2V = "3.8.9"
   Seq(
     "com.typesafe.akka" %% "akka-slf4j" % akkaV
     , "com.typesafe.akka" %% "akka-stream" % akkaV
@@ -29,9 +29,6 @@ libraryDependencies ++= {
     , "io.circe" %% "circe-core" % circeV
     , "io.circe" %% "circe-generic" % circeV
     , "io.circe" %% "circe-parser" % circeV
-    //    , "io.circe" %% "circe-jawn"
-
-    , "commons-io" % "commons-io" % "2.4"
 
     , "org.specs2" %% "specs2-core" % spec2V % "test"
     , "org.specs2" %% "specs2-junit" % spec2V % "test"

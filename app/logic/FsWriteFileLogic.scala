@@ -90,7 +90,11 @@ object FsWriteFileLogic {
     fs.isEnable && length < fs.maxLength && isMimeAllowed(mime, fs.isWhiteList, fs.mimeList)
   }
 
-  private[logic] def isMimeAllowed(mime: String, isWhiteList: Boolean, list: List[String]): Boolean =
-    if (isWhiteList) list.contains(mime) else !list.contains(mime)
+  private[logic] def isMimeAllowed(mime: String, isWhiteList: Boolean, list: List[String]): Boolean ={
+    if (isWhiteList)
+      list.foldLeft(false)((bool, listEntry) => bool || mime.contains(listEntry))
+    else
+      list.foldLeft(true)((bool, listEntry) => bool && !mime.contains(listEntry))
+  }
 
 }

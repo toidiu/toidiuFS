@@ -1,3 +1,11 @@
+val l = List("text/plain", "image/png")
+
+val s = "text/plain; charset=UTF-8"
+
+
+l.foldLeft(false)((a, b) => a || s.contains(b))
+
+
 //import java.time.format.DateTimeFormatter
 //import java.time.{ZoneOffset, ZonedDateTime}
 //
@@ -41,10 +49,10 @@ import scala.concurrent.Future
 //val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss z")
 //getNow.format(formatter)
 
-val l = List("a","b","c")
-l.zipWithIndex
-
-
-def d: () => String = () => "hi"
-
-d.apply()
+//val l = List("a","b","c")
+//l.zipWithIndex
+//
+//
+//def d: () => String = () => "hi"
+//
+//d.apply()

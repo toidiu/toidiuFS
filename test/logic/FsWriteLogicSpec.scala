@@ -20,6 +20,8 @@ class FsWriteLogicSpec extends Specification {
       return true if mime is in white list $s5
       return false if mime is in black list $s6
       return true if mime is in black list $s7
+      return true if mime is in white list but has additional characters $s8
+      return false if mime is in black list but has additional characters $s9
 
   """
 
@@ -37,6 +39,10 @@ class FsWriteLogicSpec extends Specification {
   def s6 = isFsConfigValid("text/plain", 1)(MockBlackTxtService) mustEqual false
 
   def s7 = isFsConfigValid("not txt", 1)(MockBlackTxtService) mustEqual true
+
+  def s8 = isFsConfigValid("text/plain; charset=UTF-8)", 1)(MockWhiteTxtService) mustEqual true
+
+  def s9 = isFsConfigValid("text/plain; charset=UTF-8)", 1)(MockBlackTxtService) mustEqual false
 
 
 

@@ -66,7 +66,7 @@ object S3Service extends FileService {
     for {
       op <- Future(client.getObject(bucket.getName, key))
       stream <- Future(op.getObjectContent)
-      file <- CacheUtils.saveCachedFile(key, stream)
+      file <- CacheUtils.saveCachedFile(key, "s3", stream)
     } yield file
   }
 
