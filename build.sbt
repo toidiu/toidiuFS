@@ -3,7 +3,7 @@ enablePlugins(JavaAppPackaging)
 
 name := "toidiufs"
 
-version := "0.0.2"
+version := "0.0.3"
 
 lazy val toidiufs = (project in file(".")).enablePlugins(PlayScala)
 
