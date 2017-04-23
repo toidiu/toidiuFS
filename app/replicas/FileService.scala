@@ -27,7 +27,6 @@ trait FileService {
   implicit val t: Timeout = FileService.timeout
   implicit val s: ActorSystem = FileService.system
   implicit val m: ActorMaterializer = FileService.materializer
-  val largeLockArray = 500
 
   val serviceName: String
   val isEnable: Boolean

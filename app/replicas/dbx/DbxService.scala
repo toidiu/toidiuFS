@@ -93,8 +93,7 @@ object DbxService extends FileService {
         case e: Exception => Left(MetaError(serviceName, e.toString))
       }
       finally {
-        if (stream != null)
-          stream.close()
+        if (stream != null) stream.close()
       }
     }
   }
@@ -107,13 +106,17 @@ object DbxService extends FileService {
     metaByteString ++ ByteString.fromArray(new Array[Byte](FileService.bufferByte - metaByteString.size))
   }
 
+  //-=-=-=-=-=-=-=-==-==-==-==-=-=-=-=-=-=-
+  //Lock
+  //-=-=-=-=-=-=-=-==-==-==-==-=-=-=-=-=-=-
   override def inspectOrCreateLock(key: String): Future[Try[FSLock]] = {
+    val readLockArray = 500
     Future {
       val stream = client.files().download(getLockPath(key)).getInputStream
-      val lock = Array.ofDim[Byte](largeLockArray)
-      stream.read(lock)
+      val readLock = Array.ofDim[Byte](readLockArray)
+      stream.read(readLock)
       stream.close()
-      val eitherJson = decode[FSLock](ByteString(lock.filterNot(_ == 0)).utf8String)
+      val eitherJson = decode[FSLock](ByteString(readLock.filterNot(_ == 0)).utf8String)
       eitherJson match {
         case Right(fsLock) => Success(fsLock)
         case Left(err) => Failure(new Exception(err))
@@ -121,11 +124,8 @@ object DbxService extends FileService {
     }.recoverWith { case _: DownloadErrorException => createLock(key) }
   }
 
-  def getLockPath(key: String): String = "/lock/" + key + ".lock"
+  private def getLockPath(key: String): String = "/lock/" + key + ".lock"
 
-  //-=-=-=-=-=-=-=-==-==-==-==-=-=-=-=-=-=-
-  //Lock
-  //-=-=-=-=-=-=-=-==-==-==-==-=-=-=-=-=-=-
   override def createLock(key: String): Future[Try[FSLock]] = {
     updateLock(key, FSLock(locked = false, TimeUtils.zoneAsString))
   }
