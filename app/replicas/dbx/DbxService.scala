@@ -65,7 +65,7 @@ object DbxService extends FileService {
   def getPath(key: String): String = ReplicaUtils.dbxPath + key
 
   override def releaseLock(key: String): Future[Try[FSLock]] = {
-    updateLock(key, FSLock(locked = false, TimeUtils.zoneAsString))
+    updateLock(key, FSLock(locked = false, TimeUtils.zoneTimeAsString))
   }
 
   override def getFile(key: String): Future[Try[File]] = {
@@ -127,7 +127,7 @@ object DbxService extends FileService {
   private def getLockPath(key: String): String = "/lock/" + key + ".lock"
 
   override def createLock(key: String): Future[Try[FSLock]] = {
-    updateLock(key, FSLock(locked = false, TimeUtils.zoneAsString))
+    updateLock(key, FSLock(locked = false, TimeUtils.zoneTimeAsString))
   }
 
   private def updateLock(key: String, ret: FSLock): Future[Try[FSLock]] = {
@@ -145,7 +145,7 @@ object DbxService extends FileService {
   }
 
   override def acquireLock(key: String): Future[Try[FSLock]] = {
-    updateLock(key, FSLock(locked = true, TimeUtils.zoneAsString))
+    updateLock(key, FSLock(locked = true, TimeUtils.zoneTimeAsString))
   }
 }
 

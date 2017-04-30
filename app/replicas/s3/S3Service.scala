@@ -59,7 +59,7 @@ object S3Service extends FileService {
   }
 
   override def releaseLock(key: String): Future[Try[FSLock]] = {
-    updateLock(key, FSLock(locked = false, TimeUtils.zoneAsString))
+    updateLock(key, FSLock(locked = false, TimeUtils.zoneTimeAsString))
   }
 
   override def getFile(key: String): Future[Try[File]] = {
@@ -108,11 +108,11 @@ object S3Service extends FileService {
   }
 
   override def createLock(key: String): Future[Try[FSLock]] = {
-    updateLock(key, FSLock(locked = false, TimeUtils.zoneAsString))
+    updateLock(key, FSLock(locked = false, TimeUtils.zoneTimeAsString))
   }
 
   override def acquireLock(key: String): Future[Try[FSLock]] = {
-    updateLock(key, FSLock(locked = true, TimeUtils.zoneAsString))
+    updateLock(key, FSLock(locked = true, TimeUtils.zoneTimeAsString))
   }
 
   private def updateLock(key: String, ret: FSLock): Future[Try[FSLock]] = {

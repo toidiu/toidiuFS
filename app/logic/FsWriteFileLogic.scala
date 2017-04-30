@@ -24,7 +24,7 @@ object FsWriteFileLogic {
       case Success(lockList) =>
         //attempt upload of file
         val listFut = for (fs <- lockList) yield {
-          val metaBytes = fs.buildMetaBytes(length, mime, TimeUtils.zoneAsString, key)
+          val metaBytes = fs.buildMetaBytes(length, mime, TimeUtils.zoneTimeAsString, key)
           fs.postFile(metaBytes, key, new FileInputStream(tempFile.file))
         }
 

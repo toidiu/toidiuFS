@@ -16,7 +16,7 @@ import replicas.FileService
 import utils.AppUtils.ALL_SERVICES
 import utils.ErrorUtils.{FsReadException, MetaError}
 import utils.SimpleFileMimeTypes
-import utils.TimeUtils.zoneFromString
+import utils.TimeUtils.zoneTimeFromString
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -29,7 +29,7 @@ object FsReadFileLogic {
 
   def resultFile(key: String): Future[Result] = {
     val fut = for {
-      (file, meta, resolution) <- readFileFromServers(key)
+      (file, meta, resolution) <- readFileFromFs(key)
       ret <- Future(Ok.sendFile(file, onClose = () => resolution.apply())(global, SimpleFileMimeTypes(meta.mime)))
     } yield ret
 
@@ -37,9 +37,9 @@ object FsReadFileLogic {
     fut.recover { case err: Exception => BadRequest(s"Failure. ${err.getMessage}") }
   }
 
-  private def readFileFromServers(key: String): Future[(File, MetaServer, Resolution)] = {
+  private def readFileFromFs(key: String): Future[(File, MetaServer, Resolution)] = {
     val updatedWithResolutionPart = for {
-      fsListTry <- getUpdatedFsAndResolutionPart(key)
+      fsListTry <- buildUpdatedFsAndResolutionPart(key)
       if fsListTry.isSuccess
       (metaList, fsList, resolutionPart) = fsListTry.get
       fileList <- Future.sequence(fsList.map(_.getFile(key)))
@@ -58,7 +58,7 @@ object FsReadFileLogic {
     }
   }
 
-  private def getUpdatedFsAndResolutionPart(key: String): Future[Try[(List[MetaServer], List[FileService], ResolutionPart)]] = {
+  private def buildUpdatedFsAndResolutionPart(key: String): Future[Try[(List[MetaServer], List[FileService], ResolutionPart)]] = {
     val zipFsMeta = for {
       q <- Future.sequence(ALL_SERVICES.map(_.getMeta(key)))
     } yield ALL_SERVICES.zip(q)
@@ -68,7 +68,6 @@ object FsReadFileLogic {
       (updatedFs, updatedMeta) <- Future(getUpdatedFs(key, zipped))
       resolutionPart <- Future(buildResolution(key, updatedFs, updatedMeta))
     } yield Success(updatedMeta, updatedFs, resolutionPart)
-
   }
 
   private def getUpdatedFs(key: String, futTup: List[(FileService, Either[MetaError, MetaServer])]) = {
@@ -78,16 +77,16 @@ object FsReadFileLogic {
       if meta.isRight
     } yield (fs, meta.right.get)
 
-    val mostUpdated = successfulMeta.foldLeft(Nil: List[(FileService, MetaServer)])(filterMostUpdatedService).unzip
+    val mostUpdated = successfulMeta.foldLeft(Nil: List[(FileService, MetaServer)])(filterMostUpdatedFs).unzip
     require(mostUpdated._1.nonEmpty, "Unable to read servers, failed while trying to read meta.")
     mostUpdated
   }
 
-  private[logic] def filterMostUpdatedService(list: List[(FileService, MetaServer)], nxt: (FileService, MetaServer)): List[(FileService, MetaServer)] = {
-    val nxtTime = zoneFromString(nxt._2.uploadedAt)
+  private[logic] def filterMostUpdatedFs(list: List[(FileService, MetaServer)], nxt: (FileService, MetaServer)): List[(FileService, MetaServer)] = {
+    val nxtTime = zoneTimeFromString(nxt._2.uploadedAt)
     list match {
-      case (_, meta) :: t if zoneFromString(meta.uploadedAt).isAfter(nxtTime) => list
-      case (_, meta) :: t if zoneFromString(meta.uploadedAt).isEqual(nxtTime) => nxt :: list
+      case (_, meta) :: t if zoneTimeFromString(meta.uploadedAt).isAfter(nxtTime) => list
+      case (_, meta) :: t if zoneTimeFromString(meta.uploadedAt).isEqual(nxtTime) => nxt :: list
       case _ => List(nxt)
     }
   }

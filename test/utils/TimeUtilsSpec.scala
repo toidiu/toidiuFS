@@ -17,9 +17,9 @@ class TimeUtilsSpec extends Specification {
   """
 
   def s1 = {
-    val nowStr = zoneAsString
-    val now = zoneFromString(nowStr)
-    val nowStr2 = zoneAsString(now)
+    val nowStr = zoneTimeAsString
+    val now = zoneTimeFromString(nowStr)
+    val nowStr2 = zoneTimeAsString(now)
     nowStr2 mustEqual nowStr
   }
 
